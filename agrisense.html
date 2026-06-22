@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgriSense – Lettuce Monitor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app-container">
+  
+  <aside class="sidebar sidebar-bg">
+    <div class="sidebar-header">
+      <div class="brand-logo brand-icon">🥬</div>
+      <div>
+        <h2 class="brand-name">AgriSense</h2>
+        <p class="brand-sub">Lettuce Monitor</p>
+      </div>
+    </div>
+
+    <div class="status-indicator">
+      <div class="status-badge">
+        <span class="status-dot pulse"></span>
+        System Online
+      </div>
+    </div>
+
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <button onclick="showScreen('dashboard')" id="nav-dashboard" class="nav-item active">📊 Dashboard</button>
+      <button onclick="showScreen('camera')" id="nav-camera" class="nav-item">📷 Plant Camera</button>
+      <button onclick="showScreen('logs')" id="nav-logs" class="nav-item">📋 System Logs</button>
+      <button onclick="showScreen('irrigation')" id="nav-irrigation" class="nav-item">💧 Irrigation</button>
+      <button onclick="showScreen('alerts')" id="nav-alerts" class="nav-item">⚠️ Alert Logs</button>
+      <button onclick="showScreen('settings')" id="nav-settings" class="nav-item">⚙️ Settings</button>
+    </nav>
+
+    <div class="user-panel user-card">
+      <div class="user-avatar">🧑‍🌾</div>
+      <div class="user-info">
+        <div class="user-name">Farmer</div>
+        <div class="user-role">Administrator</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="main-header">
+      <div>
+        <h1 id="page-title" class="page-title">Dashboard</h1>
+        <p id="page-sub" class="page-sub">Live sensor readings — updates every 30 seconds</p>
+      </div>
+    </header>
+
+    <div class="screen active" id="screen-dashboard">
+      
+      <div class="metrics-grid">
+        
+        <div class="card font-mono">
+          <div class="bar-strip bar-temp"></div>
+          <div class="card-body">
+            <div class="card-header-flex">
+              <span class="card-label">Air Temperature</span>
+              <span class="badge-danger text-xs px-2 py-0-5 rounded">Too Hot</span>
+            </div>
+            <div class="metric-value">35.2°C</div>
+            <div class="metric-footer">Optimal: 20°C - 24°C</div>
+          </div>
+        </div>
+
+        <div class="card font-mono">
+          <div class="bar-strip bar-humid"></div>
+          <div class="card-body">
+            <div class="card-header-flex">
+              <span class="card-label">Air Humidity</span>
+              <span class="badge-ok text-xs px-2 py-0-5 rounded">Normal</span>
+            </div>
+            <div class="metric-value">72%</div>
+            <div class="metric-footer">Optimal: 60% - 80%</div>
+          </div>
+        </div>
+
+        <div class="card font-mono">
+          <div class="bar-strip bar-soil"></div>
+          <div class="card-body">
+            <div class="card-header-flex">
+              <span class="card-label">Soil Moisture</span>
+              <span class="badge-warn text-xs px-2 py-0-5 rounded animate-pulse">Dry</span>
+            </div>
+            <div class="metric-value">48%</div>
+            <div class="metric-footer">Threshold set at: 55%</div>
+          </div>
+        </div>
+
+        <div class="card font-mono">
+          <div class="bar-strip bar-rain"></div>
+          <div class="card-body">
+            <div class="card-header-flex">
+              <span class="card-label">Rain Status</span>
+              <span class="badge-ok text-xs px-2 py-0-5 rounded">No Rain</span>
+            </div>
+            <div class="metric-value">0.0<span class="text-lg font-sans text-stone-400"> mm</span></div>
+            <div class="metric-footer">No rainfall detected</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="dashboard-split-grid">
+        
+        <div class="card flex flex-col">
+          <div class="card-header-border">
+            <h3 class="panel-title">ESP32-CAM Preview</h3>
+            <span class="badge-ok text-xs px-2 py-0-5 rounded">Active Node</span>
+          </div>
+          <div class="panel-padded-body flex-1 flex flex-col justify-between">
+            <div id="dash-cam-placeholder" class="cam-bg cam-preview-box">
+              <div class="absolute-live-tag">
+                <span class="live-dot pulse"></span> LIVE
+              </div>
+              <div class="text-center opacity-30">📷</div>
+            </div>
+            <button onclick="showScreen('camera')" class="w-full btn-outline py-2-5 rounded-xl text-sm font-semibold mt-4">View Fullscreen Camera Feed</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header-border">
+            <h3 class="panel-title">Automation Override Switches</h3>
+          </div>
+          <div class="panel-padded-body split-list">
+
+            <div class="list-item">
+              <div class="item-icon-wrapper icon-bg-green text-emerald-800">🏠</div>
+              <div class="item-text-stack">
+                <div class="item-title">Auto Roof</div>
+                <div class="item-desc">Closes when it gets too hot</div>
+              </div>
+              <button onclick="toggleSwitch(this)" data-switch="roof" class="switch-track toggle-on transition-colors duration-200">
+                <span class="switch-thumb thumb-on transition-transform duration-200"></span>
+              </button>
+            </div>
+
+            <div class="list-item">
+              <div class="item-icon-wrapper icon-bg-blue text-blue-800">💧</div>
+              <div class="flex-1">
+                <div class="item-title">Water Valve</div>
+                <div class="item-desc">Opens to water the plants</div>
+              </div>
+              <button onclick="toggleSwitch(this)" data-switch="valve" class="switch-track transition-colors duration-200">
+                <span class="switch-thumb thumb-off transition-transform duration-200"></span>
+              </button>
+            </div>
+
+            <div class="list-item">
+              <div class="item-icon-wrapper icon-bg-green text-emerald-800">⏱️</div>
+              <div class="flex-1">
+                <div class="item-title">Watering Timer</div>
+                <div class="item-desc">Waters on a schedule</div>
+              </div>
+              <button onclick="toggleSwitch(this)" class="switch-track toggle-on transition-colors duration-200">
+                <span class="switch-thumb thumb-on transition-transform duration-200"></span>
+              </button>
+            </div>
+
+            <div class="list-item">
+              <div class="item-icon-wrapper icon-bg-amber text-amber-800">🔔</div>
+              <div class="flex-1">
+                <div class="item-title">Notifications</div>
+                <div class="item-desc">Sends alerts when something is wrong</div>
+              </div>
+              <button onclick="toggleSwitch(this)" class="switch-track toggle-on transition-colors duration-200">
+                <span class="switch-thumb thumb-on transition-transform duration-200"></span>
+              </button>
+            </div>
+
+            <div class="list-item no-border">
+              <div class="item-icon-wrapper icon-bg-green text-emerald-800">🌧️</div>
+              <div class="flex-1">
+                <div class="item-title">Skip watering when raining</div>
+                <div class="item-desc">Saves water automatically</div>
+              </div>
+              <button onclick="toggleSwitch(this)" class="switch-track toggle-on transition-colors duration-200">
+                <span class="switch-thumb thumb-on transition-transform duration-200"></span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-split-grid margin-top-20">
+
+        <div class="card">
+          <div class="card-header-border">
+            <div class="panel-title">When should watering start?</div>
+            <div class="item-desc">The valve opens automatically when soil gets too dry</div>
+          </div>
+          <div class="panel-padded-body">
+            <div class="flex-justify-between text-xs text-stone-400 margin-bottom-5">
+              <span>Drier soil → water sooner</span>
+              <span>Wetter soil → water later</span>
+            </div>
+            <input type="range" min="20" max="90" value="55" class="w-full" oninput="updateThreshold(this.value)">
+            <div class="flex-justify-between align-center margin-top-12 text-sm">
+              <span class="text-stone-500">Start watering when soil drops below:</span>
+              <strong id="thresh-dash" class="text-mint">55%</strong>
+            </div>
+            <div class="margin-top-12 padding-top-12 border-top-stone flex-justify-between text-sm">
+              <span class="text-stone-500">Right now</span>
+              <span>Soil is at <strong>48%</strong> — <span class="text-amber-600 font-semibold animate-pulse">watering now</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header-border">
+            <div class="panel-title">What's happening right now</div>
+          </div>
+          <div class="panel-padded-body">
+            <div class="status-summary-box">
+              <div class="status-big-icon" id="roof-status-icon">🏠</div>
+              <div class="status-summary-title" id="roof-status-text">Roof: Closed</div>
+              <div class="status-summary-desc" id="roof-status-desc">Closed automatically · it's 35.2°C outside</div>
+            </div>
+            <div class="badge-cloud">
+              <div id="badge-roof" class="cloud-badge">
+                <span class="dot bg-red-500"></span> Roof Closed
+              </div>
+              <div id="badge-valve" class="cloud-badge">
+                <span class="dot bg-emerald-400"></span> Valve Open
+              </div>
+              <div class="cloud-badge">
+                <span class="dot bg-blue-400"></span> No Rain
+              </div>
+              <div id="badge-camera" class="cloud-badge">
+                <span class="dot bg-emerald-400"></span> Camera On
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="screen" id="screen-camera">
+      <div class="margin-bottom-20">
+        <h1 class="page-title text-xl">Plant Camera</h1>
+        <p class="page-sub">Live view from your garden camera</p>
+      </div>
+      <div class="card">
+        <div class="card-header-border flex-justify-between align-center">
+          <div class="panel-title">Live View</div>
+          <div id="cam-status-badge" class="status-badge flex align-center gap-1-5 text-xs font-medium">
+            <span class="dot bg-emerald-400 pulse"></span> Camera On
+          </div>
+        </div>
+        <div class="panel-padded-body">
+          <div id="cam-feed" class="cam-bg full-cam-box">
+            <div id="cam-live-indicator" class="absolute-live-tag font-mono">
+              <span class="live-dot pulse"></span> LIVE
+            </div>
+            <div class="text-center relative-z" id="cam-main-placeholder">
+              <div class="text-5xl opacity-30">📷</div>
+              <p class="text-xs text-white-40 font-mono margin-top-8" id="cam-ip-text">Camera active · 192.168.1.42</p>
+            </div>
+          </div>
+          <div class="margin-top-16 flex-justify-between align-center">
+            <span class="text-sm text-stone-500">Turn the camera on or off:</span>
+            <button id="cam-toggle-btn" onclick="toggleCamera()" class="btn-primary flex align-center gap-2 text-sm font-semibold py-2-5 px-5 rounded-xl">
+              <span id="cam-toggle-icon">⏹</span>
+              <span id="cam-toggle-label">Turn Off Camera</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen" id="screen-logs">
+      <div class="margin-bottom-20">
+        <h1 class="page-title text-xl">History</h1>
+        <p class="page-sub">Past sensor readings and activity records</p>
+      </div>
+
+      <div class="tab-button-bar">
+        <button onclick="setTab(this,'log-air')" class="tab-btn font-mono text-xs font-medium current-tab">#⃣ Temperature &amp; Humidity</button>
+        <button onclick="setTab(this,'log-soil')" class="tab-btn font-mono text-xs font-medium delayed-tab">🪴 Soil Moisture</button>
+        <button onclick="setTab(this,'log-valve')" class="tab-btn font-mono text-xs font-medium delayed-tab">💧 Watering Events</button>
+        <button onclick="setTab(this,'log-roof')" class="tab-btn font-mono text-xs font-medium delayed-tab">🏠 Roof Events</button>
+      </div>
+
+      <div id="log-air" class="tab-content card table-container">
+        <div class="scroll-x">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Temperature</th>
+                <th>Humidity</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody class="font-mono text-sm">
+              <tr><td>Jun 22 · 08:30</td><td>35.2°C</td><td>72%</td><td><span class="badge-danger text-xs px-2 py-0-5 rounded font-sans">Too Hot</span></td></tr>
+              <tr><td>Jun 22 · 08:00</td><td>33.8°C</td><td>74%</td><td><span class="badge-danger text-xs px-2 py-0-5 rounded font-sans">Too Hot</span></td></tr>
+              <tr><td>Jun 22 · 07:30</td><td>29.4°C</td><td>76%</td><td><span class="badge-ok text-xs px-2 py-0-5 rounded font-sans">Normal</span></td></tr>
+              <tr><td>Jun 22 · 07:00</td><td>27.1°C</td><td>80%</td><td><span class="badge-ok text-xs px-2 py-0-5 rounded font-sans">Normal</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel-padded-body border-top-stone">
+          <button class="w-full btn-outline py-2-5 rounded-xl text-sm font-semibold">⬇ Download as CSV</button>
+        </div>
+      </div>
+
+      <div id="log-soil" class="tab-content hidden card table-container">
+        <div class="scroll-x">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Soil Moisture</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody class="font-mono text-sm">
+              <tr><td>Jun 22 · 08:30</td><td>48%</td><td><span class="badge-warn text-xs px-2 py-0-5 rounded font-sans">Dry</span></td></tr>
+              <tr><td>Jun 22 · 08:00</td><td>51%</td><td><span class="badge-ok text-xs px-2 py-0-5 rounded font-sans">Good</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel-padded-body border-top-stone">
+          <button class="w-full btn-outline py-2-5 rounded-xl text-sm font-semibold">⬇ Download as CSV</button>
+        </div>
+      </div>
+
+      <div id="log-valve" class="tab-content hidden card table-container">
+        <div class="scroll-x">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Action</th>
+                <th>Duration</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody class="font-mono text-sm">
+              <tr><td>Jun 22 · 08:32</td><td><span class="badge-ok text-xs px-2 py-0-5 rounded font-sans">Opened</span></td><td>—</td><td class="font-sans text-xs text-stone-600">Soil too dry (below 55%)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel-padded-body border-top-stone">
+          <button class="w-full btn-outline py-2-5 rounded-xl text-sm font-semibold">⬇ Download as CSV</button>
+        </div>
+      </div>
+
+      <div id="log-roof" class="tab-content hidden card table-container">
+        <div class="scroll-x">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Action</th>
+                <th>Temp Gauge</th>
+              </tr>
+            </thead>
+            <tbody class="font-mono text-sm">
+              <tr><td>Jun 22 · 08:31</td><td><span class="badge-danger text-xs px-2 py-0-5 rounded font-sans">Closed</span></td><td>35.2°C</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel-padded-body border-top-stone">
+          <button class="w-full btn-outline py-2-5 rounded-xl text-sm font-semibold">⬇ Download as CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen" id="screen-irrigation">
+      <div class="margin-bottom-20">
+        <h1 class="page-title text-xl">Watering Schedule</h1>
+        <p class="page-sub">Set when and how long to water your lettuce</p>
+      </div>
+      <div class="dashboard-split-grid">
+        <div class="card">
+          <div class="card-header-border">
+            <div class="panel-title">Current Schedule</div>
+          </div>
+          <div class="panel-padded-body inner-schedule-grid">
+            <div class="schedule-block">
+              <div class="schedule-label">Next watering</div>
+              <div class="schedule-digits font-mono">06:03</div>
+            </div>
+            <div class="schedule-block">
+              <div class="schedule-label">How long</div>
+              <div class="schedule-digits font-mono">12 min</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header-border">
+            <div class="panel-title">Change Schedule</div>
+          </div>
+          <div class="panel-padded-body space-y-16">
+            <div class="flex-justify-between align-center">
+              <label class="text-sm font-medium">Morning time</label>
+              <input type="text" value="06:03" class="time-input font-mono">
+            </div>
+            <button class="w-full text-white text-sm font-semibold py-2-5 rounded-xl btn-primary">Save Schedule Updates</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen" id="screen-alerts">
+      <h1 class="page-title text-xl">Alert Notifications</h1>
+      <p class="page-sub">No major unread emergency logs exist beyond active heat warning indicators.</p>
+    </div>
+    <div class="screen" id="screen-settings">
+      <h1 class="page-title text-xl">System Configuration</h1>
+      <p class="page-sub">Configure physical hardware serial nodes and threshold ranges here.</p>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const targetScreen = document.getElementById('screen-' + screenId);
+    if(targetScreen) targetScreen.classList.add('active');
+
+    const titleMap = {
+      'dashboard': ['Dashboard', 'Live sensor readings — updates every 30 seconds'],
+      'camera': ['Plant Camera', 'Live view feed from ESP32-CAM module node'],
+      'logs': ['System Logs & Analytics', 'Historical environmental evaluation values'],
+      'irrigation': ['Irrigation Automation Controller', 'Water valve distribution metrics'],
+      'alerts': ['Notification Center', 'Active real-time priority threat registers'],
+      'settings': ['System Settings', 'Device profiles and configurations']
+    };
+    
+    if(titleMap[screenId]) {
+      document.getElementById('page-title').textContent = titleMap[screenId][0];
+      document.getElementById('page-sub').textContent = titleMap[screenId][1];
+    }
+
+    document.querySelectorAll('#sidebar-nav .nav-item').forEach(item => {
+      item.classList.remove('active');
+    });
+    const activeNav = document.getElementById('nav-' + screenId);
+    if(activeNav) {
+      activeNav.classList.add('active');
+    }
+  }
+
+  function toggleSwitch(element) {
+    const knob = element.querySelector('span');
+    const isNodeOn = knob.classList.contains('thumb-on');
+    const switchType = element.getAttribute('data-switch');
+
+    if(isNodeOn) {
+      knob.classList.remove('thumb-on');
+      knob.classList.add('thumb-off');
+      element.classList.remove('toggle-on');
+      element.classList.add('toggle-off');
+      
+      if(switchType === 'roof') updateRoofUI(false);
+      if(switchType === 'valve') updateValveUI(false);
+    } else {
+      knob.classList.remove('thumb-off');
+      knob.classList.add('thumb-on');
+      element.classList.remove('toggle-off');
+      element.classList.add('toggle-on');
+      
+      if(switchType === 'roof') updateRoofUI(true);
+      if(switchType === 'valve') updateValveUI(true);
+    }
+  }
+
+  function updateRoofUI(isOpen) {
+    const icon = document.getElementById('roof-status-icon');
+    const txt = document.getElementById('roof-status-text');
+    const desc = document.getElementById('roof-status-desc');
+    const badge = document.getElementById('badge-roof');
+    
+    if(isOpen) {
+      icon.textContent = "👐";
+      txt.textContent = "Roof: Open";
+      txt.className = "status-summary-title color-blue-override";
+      desc.textContent = "Manually opened via dashboard override control loop";
+      badge.innerHTML = `<span class="dot bg-blue-500"></span> Roof Open`;
+    } else {
+      icon.textContent = "🏠";
+      txt.textContent = "Roof: Closed";
+      txt.className = "status-summary-title";
+      desc.textContent = "Closed automatically · it's 35.2°C outside";
+      badge.innerHTML = `<span class="dot bg-red-500"></span> Roof Closed`;
+    }
+  }
+
+  function updateValveUI(isOpen) {
+    const badge = document.getElementById('badge-valve');
+    if(isOpen) {
+      badge.innerHTML = `<span class="dot bg-emerald-400"></span> Valve Open`;
+    } else {
+      badge.innerHTML = `<span class="dot bg-stone-400"></span> Valve Closed`;
+    }
+  }
+
+  function updateThreshold(val) {
+    document.getElementById('thresh-dash').textContent = val + '%';
+  }
+
+  let isCameraOn = true;
+  function toggleCamera() {
+    const feed = document.getElementById('cam-feed');
+    const badge = document.getElementById('cam-status-badge');
+    const dashboardBadge = document.getElementById('badge-camera');
+    const btnIcon = document.getElementById('cam-toggle-icon');
+    const btnLabel = document.getElementById('cam-toggle-label');
+    const mainPlaceholder = document.getElementById('cam-main-placeholder');
+    const dashPlaceholder = document.getElementById('dash-cam-placeholder');
+    const indicator = document.getElementById('cam-live-indicator');
+    const ipText = document.getElementById('cam-ip-text');
+
+    isCameraOn = !isCameraOn;
+
+    if(isCameraOn) {
+      feed.style.backgroundColor = "#1a3d2e";
+      badge.className = "status-badge flex align-center gap-1-5 text-xs font-medium";
+      badge.innerHTML = `<span class="dot bg-emerald-400 pulse"></span> Camera On`;
+      dashboardBadge.innerHTML = `<span class="dot bg-emerald-400"></span> Camera On`;
+      btnIcon.textContent = "⏹";
+      btnLabel.textContent = "Turn Off Camera";
+      mainPlaceholder.style.opacity = "1";
+      if(dashPlaceholder) dashPlaceholder.style.opacity = "1";
+      indicator.style.display = "flex";
+      ipText.textContent = "Camera active · 192.168.1.42";
+    } else {
+      feed.style.backgroundColor = "#1c1917";
+      badge.className = "status-badge flex align-center gap-1-5 text-xs font-medium offline-badge-style";
+      badge.innerHTML = `<span class="dot bg-stone-400"></span> Camera Offline`;
+      dashboardBadge.innerHTML = `<span class="dot bg-stone-400"></span> Camera Off`;
+      btnIcon.textContent = "▶";
+      btnLabel.textContent = "Turn On Camera";
+      mainPlaceholder.style.opacity = "0.15";
+      if(dashPlaceholder) dashPlaceholder.style.opacity = "0.15";
+      indicator.style.display = "none";
+      ipText.textContent = "Camera Feed Suspended";
+    }
+  }
+
+  function setTab(btn, targetContentId) {
+    document.querySelectorAll('.tab-btn').forEach(t => {
+      t.classList.remove('current-tab');
+      t.classList.add('delayed-tab');
+    });
+    btn.classList.add('current-tab');
+    btn.classList.remove('delayed-tab');
+
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+    document.getElementById(targetContentId).classList.remove('hidden');
+  }
+</script>
+</body>
+</html>
