@@ -18,6 +18,8 @@ import { router } from 'expo-router';
 import { colors, radius, spacing } from '../constants/theme';
 import Button from '../components/ui/Button';
 import Checkbox from '../components/ui/Checkbox';
+import { useAuth } from '../context/AuthContext';
+import { ApiError } from '../api/client';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -25,6 +27,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -36,12 +39,15 @@ export default function LoginScreen() {
       return;
     }
     setLoading(true);
-    // TODO: replace with your real auth call, e.g.:
-    // const res = await fetch(`${API_BASE_URL}/auth/login`, { method: 'POST', body: JSON.stringify({ email, password }) });
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await login(email.trim(), password);
       router.replace('/(tabs)/home');
-    }, 600);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Something went wrong. Please try again.';
+      Alert.alert('Login failed', message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

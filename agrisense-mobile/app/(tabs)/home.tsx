@@ -2,13 +2,14 @@
 // Dashboard. Order per spec: "what's happening now" status → live sensor readings →
 // automation override (view more) → watering threshold slider → irrigation button → system logs button.
 // Swap `sensorReadings` for a live fetch from your Express API (e.g. poll every 30s).
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, radius, spacing } from '../../constants/theme';
-import { sensorReadings } from '../../data/mockData';
+import { getLatestSensorReading, getSwitches, SensorReading, SwitchesState } from '../../api/endpoints';
 import Card from '../../components/ui/Card';
 import PanelHeader from '../../components/ui/PanelHeader';
 import MetricCard from '../../components/ui/MetricCard';
@@ -16,11 +17,54 @@ import Button from '../../components/ui/Button';
 
 export default function HomeScreen() {
   const [threshold, setThreshold] = useState(55);
-  const [roofOpen, setRoofOpen] = useState(false);
+  const [reading, setReading] = useState<SensorReading | null>(null);
+  const [switches, setSwitches] = useState<SwitchesState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const roofOpen = switches ? !switches.roof : false; // "roof" switch = auto-close enabled
+
+  const loadData = useCallback(async () => {
+    try {
+      const [sensorRes, switchRes] = await Promise.all([getLatestSensorReading(), getSwitches()]);
+      setReading(sensorRes);
+      setSwitches(switchRes);
+      // Note: the soil-moisture watering threshold below isn't in the API contract yet —
+      // it's still local-only. Add a `soilThreshold` field to /schedule (or a new endpoint)
+      // when you're ready to persist it, then load/save it here the same way as the switches.
+    } catch (err) {
+      console.warn('Failed to load dashboard data:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.flex, styles.centered]}>
+        <ActivityIndicator color={colors.mint} size="large" />
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={styles.flex} contentContainerStyle={styles.scroll}>
-      <View style={styles.headerRow}>
+    <ScrollView
+      style={styles.flex}
+      contentContainerStyle={styles.scroll}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.mint} />}
+    >      <View style={styles.headerRow}>
         <View>
           <Text style={styles.pageTitle}>Dashboard</Text>
           <Text style={styles.pageSub}>Live sensor readings — updates every 30 seconds</Text>
@@ -41,14 +85,16 @@ export default function HomeScreen() {
               Roof: {roofOpen ? 'Open' : 'Closed'}
             </Text>
             <Text style={styles.statusDesc}>
-              {roofOpen ? 'Manually opened via dashboard override' : "Closed automatically · it's 35.2°C outside"}
+              {roofOpen
+                ? 'Manually opened via dashboard override'
+                : `Closed automatically${reading ? ` · it's ${reading.airTemp}°C outside` : ''}`}
             </Text>
           </View>
           <View style={styles.badgeCloud}>
             <StatusChip dotColor={roofOpen ? colors.dotBlueStrong : colors.dotRed} label={`Roof ${roofOpen ? 'Open' : 'Closed'}`} />
-            <StatusChip dotColor={colors.dotEmerald} label="Valve Open" />
-            <StatusChip dotColor={colors.dotBlue} label="No Rain" />
-            <StatusChip dotColor={colors.dotEmerald} label="Camera On" />
+            <StatusChip dotColor={switches?.valve ? colors.dotEmerald : colors.dotStone} label={`Valve ${switches?.valve ? 'Open' : 'Closed'}`} />
+            <StatusChip dotColor={colors.dotBlue} label={reading?.rainStatus === 'ok' ? 'No Rain' : 'Raining'} />
+            <StatusChip dotColor={switches?.notifications ? colors.dotEmerald : colors.dotStone} label={`Alerts ${switches?.notifications ? 'On' : 'Off'}`} />
           </View>
         </View>
       </Card>
@@ -58,38 +104,38 @@ export default function HomeScreen() {
       <View style={styles.metricsGrid}>
         <MetricCard
           label="Air Temperature"
-          value={sensorReadings.airTemp.value}
-          unit={sensorReadings.airTemp.unit}
-          status="danger"
-          statusLabel={sensorReadings.airTemp.label}
-          footer={`Optimal: ${sensorReadings.airTemp.optimal}`}
+          value={reading?.airTemp ?? '—'}
+          unit="°C"
+          status={reading?.airTempStatus ?? 'ok'}
+          statusLabel={reading?.airTempLabel ?? 'Loading'}
+          footer="Optimal: 20°C - 24°C"
           barColor={colors.barTempEnd}
         />
         <MetricCard
           label="Air Humidity"
-          value={sensorReadings.airHumidity.value}
-          unit={sensorReadings.airHumidity.unit}
-          status="ok"
-          statusLabel={sensorReadings.airHumidity.label}
-          footer={`Optimal: ${sensorReadings.airHumidity.optimal}`}
+          value={reading?.airHumidity ?? '—'}
+          unit="%"
+          status={reading?.airHumidityStatus ?? 'ok'}
+          statusLabel={reading?.airHumidityLabel ?? 'Loading'}
+          footer="Optimal: 60% - 80%"
           barColor={colors.barHumidEnd}
         />
         <MetricCard
           label="Soil Moisture"
-          value={sensorReadings.soilMoisture.value}
-          unit={sensorReadings.soilMoisture.unit}
-          status="warn"
-          statusLabel={sensorReadings.soilMoisture.label}
-          footer={sensorReadings.soilMoisture.optimal}
+          value={reading?.soilMoisture ?? '—'}
+          unit="%"
+          status={reading?.soilMoistureStatus ?? 'ok'}
+          statusLabel={reading?.soilMoistureLabel ?? 'Loading'}
+          footer={`Threshold set at: ${Math.round(threshold)}%`}
           barColor={colors.barSoilEnd}
         />
         <MetricCard
           label="Rain Status"
-          value={sensorReadings.rain.value.toFixed(1)}
-          unit={sensorReadings.rain.unit}
-          status="ok"
-          statusLabel={sensorReadings.rain.label}
-          footer={sensorReadings.rain.optimal}
+          value={reading ? reading.rain.toFixed(1) : '—'}
+          unit="mm"
+          status={reading?.rainStatus ?? 'ok'}
+          statusLabel={reading?.rainLabel ?? 'Loading'}
+          footer="No rainfall detected"
           barColor={colors.barRainEnd}
         />
       </View>
@@ -162,6 +208,7 @@ function StatusChip({ dotColor, label }: { dotColor: string; label: string }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
+  centered: { alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: spacing.lg, paddingBottom: 40 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.lg },
   pageTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary },

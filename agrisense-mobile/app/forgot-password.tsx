@@ -7,6 +7,8 @@ import { router } from 'expo-router';
 import { colors, radius, spacing } from '../constants/theme';
 import Button from '../components/ui/Button';
 import ScreenHeader from '../components/ui/ScreenHeader';
+import { requestPasswordOtp, resetPassword as resetPasswordApi } from '../api/endpoints';
+import { ApiError } from '../api/client';
 
 export default function ForgotPasswordScreen() {
   const [step, setStep] = useState<'email' | 'otp'>('email');
@@ -15,26 +17,34 @@ export default function ForgotPasswordScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const requestOtp = () => {
+  const requestOtp = async () => {
     if (!email) return Alert.alert('Missing email', 'Enter the email tied to your account.');
     setLoading(true);
-    // TODO: POST { email } to your /auth/forgot-password endpoint (triggers Nodemailer OTP)
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await requestPasswordOtp(email.trim());
       setStep('otp');
-    }, 500);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Could not send the code. Please try again.';
+      Alert.alert('Something went wrong', message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const resetPassword = () => {
+  const resetPassword = async () => {
     if (!otp || !newPassword) return Alert.alert('Missing info', 'Enter the OTP and a new password.');
     setLoading(true);
-    // TODO: POST { email, otp, newPassword } to your /auth/reset-password endpoint
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await resetPasswordApi(email.trim(), otp.trim(), newPassword);
       Alert.alert('Password updated', 'You can now log in with your new password.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
-    }, 500);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Could not reset your password. Please try again.';
+      Alert.alert('Something went wrong', message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
