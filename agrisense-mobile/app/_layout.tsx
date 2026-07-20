@@ -1,6 +1,3 @@
-
-
-layout · TSX
 // app/_layout.tsx
 // Root stack. "login" is the first screen a user sees; once logged in they land on the
 // (tabs) group. Screens pushed on top of the tabs (automation, irrigation, system-logs,
