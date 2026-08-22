@@ -5,7 +5,6 @@
 // that consume this data don't need to change shape-wise.
 
 export type LettuceStage = 'seedling' | 'growth' | 'mature';
-export type DurationUnit = 'day' | 'week';
 
 export const stageOrder: LettuceStage[] = ['seedling', 'growth', 'mature'];
 export const stageLabels: Record<LettuceStage, string> = {
@@ -14,10 +13,17 @@ export const stageLabels: Record<LettuceStage, string> = {
   mature: 'Mature',
 };
 
+// Stage always follows the plant's age — Day 1-10 Seedling, 11-20 Growth, 21+ Mature.
+// There is no manual stage picker; farmers only ever edit the age.
+export function stageForAge(ageDays: number): LettuceStage {
+  const age = Math.max(1, Math.round(ageDays));
+  if (age <= 10) return 'seedling';
+  if (age <= 20) return 'growth';
+  return 'mature';
+}
+
 export const defaultLifecycle = {
-  stage: 'seedling' as LettuceStage,
-  durationValue: 1,
-  durationUnit: 'day' as DurationUnit,
+  ageDays: 1,
   setAt: new Date().toISOString(),
 };
 
@@ -85,6 +91,21 @@ export const weeklyWeatherMock: {
 export const defaultAutomationLimits = {
   soilMoistureLimit: 40, // % — below this, watering runs regardless of forecast
   tempLimit: 32, // °C — above this, watering runs regardless of forecast
+  overrideAmountLiters: 2, // L — released when a limit-triggered (non-scheduled) watering fires
+};
+
+// Per-day watering plan — independent time + amount for each day of the week, editable from
+// the Weekly Weather page. Keyed by the same short day name used in weeklyWeatherMock.
+export type DayWatering = { time: string; amountLiters: number };
+
+export const initialWateringSchedule: Record<string, DayWatering> = {
+  Mon: { time: '06:00', amountLiters: 2 },
+  Tue: { time: '06:00', amountLiters: 2 },
+  Wed: { time: '06:00', amountLiters: 2 },
+  Thu: { time: '06:00', amountLiters: 2 },
+  Fri: { time: '06:00', amountLiters: 2 },
+  Sat: { time: '06:30', amountLiters: 1.5 },
+  Sun: { time: '06:30', amountLiters: 1.5 },
 };
 
 export type NotificationCategory = 'watered' | 'tank-low' | 'limit-exceeded' | 'daily-status' | 'lifecycle-change';
@@ -130,18 +151,5 @@ export const initialNotifications: NotificationItem[] = [
 ];
 
 export const initialLifecycleLogs: { time: string; action: string; statusType: 'ok' | 'warn' | 'danger' }[] = [
-  { time: 'Yesterday · 07:00 AM', action: 'Stage set to Seedling (Day 1)', statusType: 'ok' },
-];
-
-export type AdminUser = {
-  id: string;
-  username: string;
-  email: string;
-  role: 'Administrator' | 'User';
-  createdAt: string;
-};
-
-export const initialAdminUsers: AdminUser[] = [
-  { id: 'u1', username: 'Sarah Admin', email: 'sarah@agrisense.app', role: 'Administrator', createdAt: '2026-06-01T09:00:00.000Z' },
-  { id: 'u2', username: 'Mark User', email: 'mark@agrisense.app', role: 'User', createdAt: '2026-07-12T14:10:00.000Z' },
+  { time: 'Yesterday · 07:00 AM', action: 'Age set to 1 day — Seedling stage', statusType: 'ok' },
 ];

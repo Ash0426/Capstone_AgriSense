@@ -73,7 +73,7 @@ Response 200: `{ "key": "roof", "value": true }`
 
 ### GET /logs/:type  (protected)
 `:type` is one of `temp-humidity`, `soil`, `valve`, `roof`
-Response 200: `[{ "time": "...", ... type-specific fields } ]`
+Response 200: `[{ "time": "...", ... type-specific fields } ]` — `valve`/`roof` rows also include `"by": "<user name>"`, the account that made the change (manual toggle or an automation running under a logged-in session).
 
 ---
 
@@ -88,6 +88,23 @@ Response 200: updated user object
 
 ### GET /users/me/activity  (protected)
 Response 200: `[{ "id": 1, "action": "...", "time": "..." }]`
+
+### GET /users  (admin only)
+Response 200: `[{ "id": 1, "name": "...", "email": "...", "role": "Administrator" | "User", "password_hash": "...", "disabled": boolean, "created_at": "..." }]`
+Response 403: `{ "error": "Admin access required" }`
+
+### POST /users  (admin only)
+Request: `{ "name": string, "email": string, "password": string, "role"?: "Administrator" | "User" }`
+Response 201: same shape as a `GET /users` row
+Response 409: `{ "error": "A user with that email already exists" }`
+
+### PATCH /users/:id  (admin only)
+Request: `{ "name"?: string, "email"?: string, "role"?: string, "disabled"?: boolean }`
+Response 200: same shape as a `GET /users` row
+
+### DELETE /users/:id  (admin only)
+Response 200: `{ "message": "User deleted" }`
+Response 400: `{ "error": "You can't delete your own account" }`
 
 ---
 

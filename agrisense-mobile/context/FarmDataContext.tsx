@@ -1,11 +1,11 @@
 // context/FarmDataContext.tsx
 // Shared farm state: lettuce lifecycle, live sensor reading, water automation limits,
 // notifications, and logs — all in one place so screens can read/react to the same data
-// (e.g. saving the lifecycle stage or crossing an automation limit pushes a notification
+// (e.g. saving the lifecycle age or crossing an automation limit pushes a notification
 // AND a log entry at the same time). Memory-only, same durability as AuthContext — resets
-// on a full app close. Reuses real endpoints where they exist (sensors, switches, valve logs);
-// everything else (lifecycle, weather, limits, admin users) is local state with a TODO for
-// the real backend field/endpoint it should eventually read from.
+// on a full app close. Reuses real endpoints where they exist (sensors, switches, valve logs,
+// admin user management); everything else (lifecycle, weather, limits) is local state with a
+// TODO for the real backend field/endpoint it should eventually read from.
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import {
@@ -15,33 +15,38 @@ import {
   getLogs,
   logHealthRating,
   getHeatStressPrediction,
+  listUsers,
+  createUser,
+  updateUser,
+  deleteUser,
   SensorReading,
   SwitchesState,
   HeatStressPrediction,
+  AdminUserRecord,
 } from '../api/endpoints';
 import {
   defaultLifecycle,
   stageOrder,
   stageLabels,
+  stageForAge,
   healthRatingOptions,
   mockHeatIndex,
   mockWaterLevel,
   weeklyWeatherMock,
   defaultAutomationLimits,
+  initialWateringSchedule,
   initialNotifications,
   initialLifecycleLogs,
-  initialAdminUsers,
   sensorMeta,
   initialSensorLogs,
   initialCalibration,
   LettuceStage,
-  DurationUnit,
   NotificationItem,
   NotificationCategory,
-  AdminUser,
   SensorKey,
   SensorLogEntry,
   Calibration,
+  DayWatering,
 } from '../data/mockData';
 
 const LOW_WATER_THRESHOLD = 20;
@@ -67,20 +72,22 @@ function healthSeverity(rating: string): 'ok' | 'warn' | 'danger' {
   return 'ok';
 }
 
-type Lifecycle = { stage: LettuceStage; durationValue: number; durationUnit: DurationUnit; setAt: string };
+type Lifecycle = { ageDays: number; setAt: string };
 type HealthLogEntry = { id: string; rating: string; loggedAt: string };
 type LifecycleLogEntry = { time: string; action: string; statusType: 'ok' | 'warn' | 'danger' };
-type AutomationLimits = { soilMoistureLimit: number; tempLimit: number };
+type AutomationLimits = { soilMoistureLimit: number; tempLimit: number; overrideAmountLiters: number };
 
 type FarmDataContextValue = {
   reading: SensorReading | null;
 
   lifecycle: Lifecycle;
+  stage: LettuceStage;
   stageIndex: number;
-  setLifecycle: (stage: LettuceStage, durationValue: number, durationUnit: DurationUnit) => void;
+  setLifecycle: (ageDays: number) => void;
 
   healthLog: HealthLogEntry[];
   logHealth: (rating: string) => void;
+  editHealthLog: (id: string, rating: string) => void;
 
   heatIndex: number;
   waterLevel: number;
@@ -88,6 +95,8 @@ type FarmDataContextValue = {
 
   weeklyWeather: typeof weeklyWeatherMock;
   predictedWatering: { day: string; watering: boolean; reason: string }[];
+  wateringSchedule: Record<string, DayWatering>;
+  setDayWatering: (day: string, value: DayWatering) => void;
 
   automationLimits: AutomationLimits;
   setAutomationLimits: (partial: Partial<AutomationLimits>) => void;
@@ -98,8 +107,11 @@ type FarmDataContextValue = {
   notifications: NotificationItem[];
   lifecycleLogs: LifecycleLogEntry[];
 
-  adminUsers: AdminUser[];
-  addAdminUser: (user: Omit<AdminUser, 'id' | 'createdAt'>) => void;
+  adminUsers: AdminUserRecord[];
+  refreshUsers: () => Promise<void>;
+  createUserRecord: (user: { name: string; email: string; password: string; role: 'Administrator' | 'User' }) => Promise<void>;
+  updateUserRecord: (id: number, updates: Partial<{ name: string; email: string; role: string; disabled: boolean }>) => Promise<void>;
+  deleteUserRecord: (id: number) => Promise<void>;
 
   calibration: Record<SensorKey, Calibration>;
   setCalibration: (key: SensorKey, value: Calibration) => void;
@@ -113,7 +125,7 @@ type FarmDataContextValue = {
 const FarmDataContext = createContext<FarmDataContextValue | null>(null);
 
 export function FarmDataProvider({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
 
   const [reading, setReading] = useState<SensorReading | null>(null);
   const [lifecycle, setLifecycleState] = useState<Lifecycle>(defaultLifecycle);
@@ -121,10 +133,11 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
   const [waterLevel] = useState(mockWaterLevel); // TODO: read from /sensors/latest once hardware reports it
   const [lastWatering, setLastWatering] = useState<string | null>(null);
   const [automationLimits, setAutomationLimitsState] = useState<AutomationLimits>(defaultAutomationLimits);
+  const [wateringSchedule, setWateringScheduleState] = useState<Record<string, DayWatering>>(initialWateringSchedule);
   const [switches, setSwitches] = useState<SwitchesState | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
   const [lifecycleLogs, setLifecycleLogs] = useState<LifecycleLogEntry[]>(initialLifecycleLogs);
-  const [adminUsers, setAdminUsers] = useState<AdminUser[]>(initialAdminUsers);
+  const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>([]);
   const [calibration, setCalibrationState] = useState<Record<SensorKey, Calibration>>(initialCalibration);
   const [sensorLogs, setSensorLogs] = useState<Record<SensorKey, SensorLogEntry[]>>(initialSensorLogs);
   const [heatStress, setHeatStress] = useState<HeatStressPrediction | null>(null);
@@ -133,6 +146,8 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
   const breachActiveRef = useRef(false);
   const tankLowNotifiedRef = useRef(false);
   const prevReadingRef = useRef<SensorReading | null>(null);
+
+  const actorSuffix = user?.name ? ` (by ${user.name})` : '';
 
   const addNotification = useCallback(
     (category: NotificationCategory, icon: string, iconBg: 'green' | 'blue' | 'amber', title: string, desc: string) => {
@@ -149,15 +164,16 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setLifecycle = useCallback(
-    (stage: LettuceStage, durationValue: number, durationUnit: DurationUnit) => {
-      setLifecycleState({ stage, durationValue, durationUnit, setAt: new Date().toISOString() });
-      const label = `Stage set to ${stageLabels[stage]} (${durationUnit === 'day' ? 'Day' : 'Week'} ${durationValue})`;
+    (ageDays: number) => {
+      const clamped = Math.max(1, Math.round(ageDays));
+      setLifecycleState({ ageDays: clamped, setAt: new Date().toISOString() });
+      const stage = stageForAge(clamped);
+      const label = `Age set to ${clamped} day${clamped === 1 ? '' : 's'} — now ${stageLabels[stage]} stage`;
       addNotification('lifecycle-change', 'leaf', 'green', 'Lifecycle stage updated', label);
-      addLifecycleLog(label, 'ok');
-      // TODO: PATCH the real lifecycle to your backend + a scheduler that re-checks
-      // daily/weekly (per durationUnit) to auto-advance the stage.
+      addLifecycleLog(`${label}${actorSuffix}`, 'ok');
+      // TODO: PATCH the real lifecycle to your backend + a scheduler that re-checks daily.
     },
-    [addNotification, addLifecycleLog]
+    [addNotification, addLifecycleLog, actorSuffix]
   );
 
   const refreshHeatStress = useCallback(async () => {
@@ -172,18 +188,35 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
     (rating: string) => {
       setHealthLog((prev) => [{ id: `${Date.now()}`, rating, loggedAt: new Date().toISOString() }, ...prev]);
       addNotification('daily-status', 'sunny', 'amber', 'Daily crop status', `Health logged: ${rating}`);
-      addLifecycleLog(`Health rated: ${rating}`, healthSeverity(rating));
+      addLifecycleLog(`Health rated: ${rating}${actorSuffix}`, healthSeverity(rating));
       logHealthRating(rating)
         .then(() => refreshHeatStress())
         .catch((err) => console.warn('Failed to persist health rating:', err));
     },
-    [addNotification, addLifecycleLog, refreshHeatStress]
+    [addNotification, addLifecycleLog, refreshHeatStress, actorSuffix]
+  );
+
+  const editHealthLog = useCallback(
+    (id: string, rating: string) => {
+      setHealthLog((prev) => prev.map((e) => (e.id === id ? { ...e, rating, loggedAt: new Date().toISOString() } : e)));
+      addNotification('daily-status', 'sunny', 'amber', 'Daily crop status', `Health rating updated to: ${rating}`);
+      addLifecycleLog(`Health rating updated to: ${rating}${actorSuffix}`, healthSeverity(rating));
+      logHealthRating(rating)
+        .then(() => refreshHeatStress())
+        .catch((err) => console.warn('Failed to persist updated health rating:', err));
+    },
+    [addNotification, addLifecycleLog, refreshHeatStress, actorSuffix]
   );
 
   const setAutomationLimits = useCallback((partial: Partial<AutomationLimits>) => {
     setAutomationLimitsState((prev) => ({ ...prev, ...partial }));
     // TODO: PATCH /automation/limits once that endpoint exists — for now this only
     // persists in memory for the current app session.
+  }, []);
+
+  const setDayWatering = useCallback((day: string, value: DayWatering) => {
+    setWateringScheduleState((prev) => ({ ...prev, [day]: value }));
+    // TODO: PATCH the real per-day watering schedule to your backend once it exists.
   }, []);
 
   const addSensorLog = useCallback((key: SensorKey, value: number) => {
@@ -218,14 +251,14 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
         await setSwitch('valve', true);
         await setSwitch('valve', false);
         setLastWatering(now());
-        addNotification('watered', 'water', 'blue', 'Crop watered', reason);
+        addNotification('watered', 'water', 'blue', 'Crop watered', `${reason} — ${automationLimits.overrideAmountLiters}L released`);
       } catch (err) {
         console.warn('Auto-watering failed:', err);
       } finally {
         wateringActiveRef.current = false;
       }
     },
-    [addNotification]
+    [addNotification, automationLimits.overrideAmountLiters]
   );
 
   // Poll the real sensor endpoint and run the limit-based auto-watering + tank-low checks.
@@ -291,7 +324,40 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, [isLoggedIn, refreshHeatStress]);
 
-  // One-time hydration: seed "last watering" from the real valve log, and check tank level.
+  const refreshUsers = useCallback(async () => {
+    try {
+      setAdminUsers(await listUsers());
+    } catch (err) {
+      console.warn('Failed to load users (likely not an admin account):', err);
+    }
+  }, []);
+
+  const createUserRecord = useCallback(
+    async (newUser: { name: string; email: string; password: string; role: 'Administrator' | 'User' }) => {
+      await createUser(newUser);
+      await refreshUsers();
+    },
+    [refreshUsers]
+  );
+
+  const updateUserRecord = useCallback(
+    async (id: number, updates: Partial<{ name: string; email: string; role: string; disabled: boolean }>) => {
+      await updateUser(id, updates);
+      await refreshUsers();
+    },
+    [refreshUsers]
+  );
+
+  const deleteUserRecord = useCallback(
+    async (id: number) => {
+      await deleteUser(id);
+      await refreshUsers();
+    },
+    [refreshUsers]
+  );
+
+  // One-time hydration: seed "last watering" from the real valve log, check tank level, and
+  // load the admin users list (silently no-ops for non-admin accounts — server 403s).
   useEffect(() => {
     if (!isLoggedIn) return;
     getLogs('valve')
@@ -301,6 +367,8 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {});
 
+    refreshUsers();
+
     if (waterLevel < LOW_WATER_THRESHOLD && !tankLowNotifiedRef.current) {
       tankLowNotifiedRef.current = true;
       addNotification('tank-low', 'alert-circle', 'amber', 'Water tank level low', `Tank at ${waterLevel}% — refill soon`);
@@ -308,12 +376,8 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]);
 
-  const stageIndex = stageOrder.indexOf(lifecycle.stage);
-
-  const addAdminUser = useCallback((user: Omit<AdminUser, 'id' | 'createdAt'>) => {
-    setAdminUsers((prev) => [...prev, { ...user, id: `${Date.now()}`, createdAt: new Date().toISOString() }]);
-    // TODO: POST /users once a real admin-create-user endpoint exists.
-  }, []);
+  const stage = stageForAge(lifecycle.ageDays);
+  const stageIndex = stageOrder.indexOf(stage);
 
   const sensorValues: Record<SensorKey, number | null> = {
     heatIndex: mockHeatIndex,
@@ -338,15 +402,19 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
       value={{
         reading,
         lifecycle,
+        stage,
         stageIndex,
         setLifecycle,
         healthLog,
         logHealth,
+        editHealthLog,
         heatIndex: mockHeatIndex,
         waterLevel,
         lastWatering,
         weeklyWeather: weeklyWeatherMock,
         predictedWatering,
+        wateringSchedule,
+        setDayWatering,
         automationLimits,
         setAutomationLimits,
         switches,
@@ -354,7 +422,10 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
         notifications,
         lifecycleLogs,
         adminUsers,
-        addAdminUser,
+        refreshUsers,
+        createUserRecord,
+        updateUserRecord,
+        deleteUserRecord,
         calibration,
         setCalibration,
         sensorLogs,

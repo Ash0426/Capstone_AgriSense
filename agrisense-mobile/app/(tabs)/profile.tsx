@@ -1,12 +1,12 @@
 // app/(tabs)/profile.tsx
-// Profile tab: one card holding username/role (read-only) + email/password (editable via the
-// corner Edit button), admin-only collapsed Create New User, Settings (User Logs / System
-// Logs), Log Out.
+// Profile tab: one card holding a centered avatar + username/role, with email/password
+// editable via the corner Edit button, admin-only collapsed Create New User (now wired to the
+// real POST /users endpoint), Settings (User Logs / System Logs — Users list is admin-only),
+// Log Out.
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useFarmData } from '../../context/FarmDataContext';
@@ -17,10 +17,11 @@ import PanelHeader from '../../components/ui/PanelHeader';
 import ListItem from '../../components/ui/ListItem';
 import Button from '../../components/ui/Button';
 import ConfirmModal from '../../components/ui/ConfirmModal';
+import TopHeader from '../../components/ui/TopHeader';
 
 export default function ProfileScreen() {
   const { user, setUser, logout } = useAuth();
-  const { addAdminUser } = useFarmData();
+  const { createUserRecord } = useFarmData();
 
   const [editing, setEditing] = useState(false);
   const [username, setUsername] = useState(user?.name ?? '');
@@ -33,6 +34,7 @@ export default function ProfileScreen() {
   const [newUsername, setNewUsername] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [creating, setCreating] = useState(false);
   const [createConfirmVisible, setCreateConfirmVisible] = useState(false);
 
   const [logoutVisible, setLogoutVisible] = useState(false);
@@ -74,19 +76,25 @@ export default function ProfileScreen() {
     }
   };
 
-  const confirmCreateUser = () => {
-    addAdminUser({ username: newUsername.trim(), email: newEmail.trim(), role: 'User' });
-    setNewUsername('');
-    setNewEmail('');
-    setNewPassword('');
-    setShowCreateUser(false);
-    setCreateConfirmVisible(false);
-    // TODO: this only adds the user to local state — see addAdminUser in FarmDataContext for
-    // the real POST /users endpoint this should call once it exists.
+  const confirmCreateUser = async () => {
+    setCreating(true);
+    try {
+      await createUserRecord({ name: newUsername.trim(), email: newEmail.trim(), password: newPassword, role: 'User' });
+      setNewUsername('');
+      setNewEmail('');
+      setNewPassword('');
+      setShowCreateUser(false);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Could not create the new user.';
+      Alert.alert('Create failed', message);
+    } finally {
+      setCreating(false);
+      setCreateConfirmVisible(false);
+    }
   };
 
   const requestCreateUser = () => {
-    if (!newUsername || !newEmail || !newPassword) {
+    if (!newUsername.trim() || !newEmail.trim() || !newPassword) {
       Alert.alert('Missing info', 'Enter a username, email, and password for the new user.');
       return;
     }
@@ -100,19 +108,17 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.flex} edges={['top']}>
+    <View style={styles.flex}>
+      <TopHeader />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.pageTitle}>Profile</Text>
-
         <Card style={styles.section}>
           <View style={styles.profileHeader}>
             <View style={[styles.avatar, { backgroundColor: user?.color || colors.mint }]}>
               <Text style={styles.avatarInitial}>{(user?.name || 'U').charAt(0)}</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.userName}>{(editing ? username : user?.name) || '—'}</Text>
-              <Text style={styles.userRole}>{user?.role ?? '—'}</Text>
-            </View>
+            <Text style={styles.userName}>{(editing ? username : user?.name) || '—'}</Text>
+            <Text style={styles.userRole}>{user?.role ?? '—'}</Text>
           </View>
 
           <View style={styles.body}>
@@ -181,47 +187,49 @@ export default function ProfileScreen() {
         {isAdmin && (
           <Card style={styles.section}>
             {!showCreateUser ? (
-              <View style={styles.body}>
-                <Button label="Create New User" variant="outline" onPress={() => setShowCreateUser(true)} />
+              <View style={styles.createPromptBody}>
+                <Button
+                  label="Create New User"
+                  variant="outline"
+                  onPress={() => setShowCreateUser(true)}
+                  style={styles.createPromptBtn}
+                />
               </View>
             ) : (
-              <>
-                <PanelHeader title="Create New User" />
-                <View style={styles.body}>
-                  <TextInput
-                    style={styles.stackedInput}
-                    value={newUsername}
-                    onChangeText={setNewUsername}
-                    placeholder="Username"
-                    placeholderTextColor={colors.textMuted}
-                  />
-                  <TextInput
-                    style={styles.stackedInput}
-                    value={newEmail}
-                    onChangeText={setNewEmail}
-                    placeholder="Email"
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    placeholderTextColor={colors.textMuted}
-                  />
-                  <TextInput
-                    style={styles.stackedInput}
-                    value={newPassword}
-                    onChangeText={setNewPassword}
-                    placeholder="Password"
-                    secureTextEntry
-                    placeholderTextColor={colors.textMuted}
-                  />
-                  <View style={styles.createActions}>
-                    <TouchableOpacity onPress={() => setShowCreateUser(false)} style={styles.cancelLink}>
-                      <Text style={styles.cancelLinkText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <View style={{ flex: 1 }}>
-                      <Button label="Create" onPress={requestCreateUser} />
-                    </View>
+              <View style={styles.body}>
+                <TextInput
+                  style={styles.stackedInput}
+                  value={newUsername}
+                  onChangeText={setNewUsername}
+                  placeholder="Username"
+                  placeholderTextColor={colors.textMuted}
+                />
+                <TextInput
+                  style={styles.stackedInput}
+                  value={newEmail}
+                  onChangeText={setNewEmail}
+                  placeholder="Email"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  placeholderTextColor={colors.textMuted}
+                />
+                <TextInput
+                  style={styles.stackedInput}
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  placeholder="Password"
+                  secureTextEntry
+                  placeholderTextColor={colors.textMuted}
+                />
+                <View style={styles.createActions}>
+                  <TouchableOpacity onPress={() => setShowCreateUser(false)} style={styles.cancelLink}>
+                    <Text style={styles.cancelLinkText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <Button label="Create" onPress={requestCreateUser} loading={creating} />
                   </View>
                 </View>
-              </>
+              </View>
             )}
           </Card>
         )}
@@ -229,15 +237,17 @@ export default function ProfileScreen() {
         <Card style={styles.section}>
           <PanelHeader title="Settings" />
           <View style={styles.body}>
-            <TouchableOpacity onPress={() => router.push('/user-log')}>
-              <ListItem
-                icon="people-outline"
-                iconBg="blue"
-                title="User Logs"
-                desc="Registered users and their roles"
-                right={<Ionicons name="chevron-forward" size={18} color={colors.textMuted} />}
-              />
-            </TouchableOpacity>
+            {isAdmin && (
+              <TouchableOpacity onPress={() => router.push('/user-log')}>
+                <ListItem
+                  icon="people-outline"
+                  iconBg="blue"
+                  title="Users"
+                  desc="Manage registered users"
+                  right={<Ionicons name="chevron-forward" size={18} color={colors.textMuted} />}
+                />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={() => router.push('/system-logs')}>
               <ListItem
                 icon="document-text-outline"
@@ -267,7 +277,7 @@ export default function ProfileScreen() {
         <ConfirmModal
           visible={createConfirmVisible}
           title="Create new user?"
-          message={`Add "${newUsername}" as a new user.`}
+          message={`Add "${newUsername}" as a new user who can log in with the password you set.`}
           confirmLabel="Create"
           onConfirm={confirmCreateUser}
           onCancel={() => setCreateConfirmVisible(false)}
@@ -282,7 +292,7 @@ export default function ProfileScreen() {
           onCancel={() => setLogoutVisible(false)}
         />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -291,12 +301,14 @@ const styles = StyleSheet.create({
   scroll: { padding: spacing.lg, paddingBottom: 40 },
   pageTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary, marginBottom: spacing.lg },
   section: { marginBottom: spacing.lg },
-  profileHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
-  avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 22, fontWeight: '700', color: colors.white },
+  profileHeader: { alignItems: 'center', padding: spacing.xl },
+  avatar: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md },
+  avatarInitial: { fontSize: 28, fontWeight: '700', color: colors.white },
   userName: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
   userRole: { fontSize: 11, color: colors.mint, marginTop: 2, fontWeight: '600' },
   body: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+  createPromptBody: { alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.lg },
+  createPromptBtn: { width: '70%' },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6 },
   readValue: { fontSize: 14, color: colors.textPrimary },
   input: {

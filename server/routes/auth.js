@@ -18,6 +18,8 @@ router.post('/login', (req, res) => {
   const valid = bcrypt.compareSync(password, user.password_hash);
   if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
+  if (user.disabled) return res.status(401).json({ error: 'This account has been disabled' });
+
   const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
   db.prepare('INSERT INTO user_activity (user_id, action) VALUES (?, ?)').run(user.id, 'Logged in');

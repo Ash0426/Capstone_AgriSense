@@ -22,8 +22,10 @@ export default function AutomationScreen() {
 
   const [soilLimitInput, setSoilLimitInput] = useState(String(automationLimits.soilMoistureLimit));
   const [tempLimitInput, setTempLimitInput] = useState(String(automationLimits.tempLimit));
+  const [overrideAmountInput, setOverrideAmountInput] = useState(String(automationLimits.overrideAmountLiters));
   const [soilConfirmVisible, setSoilConfirmVisible] = useState(false);
   const [tempConfirmVisible, setTempConfirmVisible] = useState(false);
+  const [overrideAmountConfirmVisible, setOverrideAmountConfirmVisible] = useState(false);
 
   const [pendingRoofValue, setPendingRoofValue] = useState<boolean | null>(null);
   const [roofConfirmVisible, setRoofConfirmVisible] = useState(false);
@@ -42,6 +44,13 @@ export default function AutomationScreen() {
     setAutomationLimits({ tempLimit: Number.isFinite(value) ? value : automationLimits.tempLimit });
     setTempLimitInput(String(Number.isFinite(value) ? value : automationLimits.tempLimit));
     setTempConfirmVisible(false);
+  };
+
+  const confirmSaveOverrideAmount = () => {
+    const value = parseFloat(overrideAmountInput);
+    setAutomationLimits({ overrideAmountLiters: Number.isFinite(value) ? value : automationLimits.overrideAmountLiters });
+    setOverrideAmountInput(String(Number.isFinite(value) ? value : automationLimits.overrideAmountLiters));
+    setOverrideAmountConfirmVisible(false);
   };
 
   const requestRoofToggle = (next: boolean) => {
@@ -132,6 +141,24 @@ export default function AutomationScreen() {
               <Button label="Save" onPress={() => setTempConfirmVisible(true)} />
             </View>
           </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.limitRow}>
+            <Text style={styles.fieldLabel}>Water released on override (Liters)</Text>
+            <Text style={styles.explainer}>Used when a limit-triggered watering fires outside the normal daily schedule.</Text>
+          </View>
+          <View style={styles.editRow}>
+            <TextInput
+              style={styles.input}
+              value={overrideAmountInput}
+              onChangeText={setOverrideAmountInput}
+              keyboardType="numbers-and-punctuation"
+            />
+            <View style={styles.saveBtnWrap}>
+              <Button label="Save" onPress={() => setOverrideAmountConfirmVisible(true)} />
+            </View>
+          </View>
         </View>
       </Card>
 
@@ -165,6 +192,14 @@ export default function AutomationScreen() {
       confirmLabel="Save"
       onConfirm={confirmSaveTempLimit}
       onCancel={() => setTempConfirmVisible(false)}
+    />
+    <ConfirmModal
+      visible={overrideAmountConfirmVisible}
+      title="Save override amount?"
+      message={`A limit-triggered watering will release ${overrideAmountInput}L.`}
+      confirmLabel="Save"
+      onConfirm={confirmSaveOverrideAmount}
+      onCancel={() => setOverrideAmountConfirmVisible(false)}
     />
     <ConfirmModal
       visible={roofConfirmVisible}

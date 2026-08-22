@@ -1,15 +1,15 @@
 // app/lifecycle.tsx
-// Full Lettuce Lifecycle page, opened from the banner on the Dashboard. Shows the current
-// stage as a statement + read-only stepper; the stage-editing controls only appear once the
-// farmer taps "Update Stage". The health-rating question only shows once per calendar day —
-// after it's answered it's replaced by a confirmation line until the next day.
+// Full Lettuce Lifecycle page, opened from the banner on the Dashboard. Stage always follows
+// the plant's age (Day 1-10 Seedling, 11-20 Growth, 21+ Mature) — there's no manual stage
+// picker, only an age field. The health-rating question only shows once per calendar day;
+// after answering, today's rating can still be edited (via the "Edit" link) until midnight.
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../constants/theme';
 import { useFarmData } from '../context/FarmDataContext';
-import { stageOrder, stageLabels, healthRatingOptions, LettuceStage, DurationUnit } from '../data/mockData';
+import { stageOrder, stageLabels, healthRatingOptions } from '../data/mockData';
 import Card from '../components/ui/Card';
 import PanelHeader from '../components/ui/PanelHeader';
 import ScreenHeader from '../components/ui/ScreenHeader';
@@ -17,14 +17,13 @@ import Button from '../components/ui/Button';
 import ConfirmModal from '../components/ui/ConfirmModal';
 
 export default function LifecycleScreen() {
-  const { lifecycle, stageIndex, setLifecycle, healthLog, logHealth } = useFarmData();
+  const { lifecycle, stage, stageIndex, setLifecycle, healthLog, logHealth, editHealthLog } = useFarmData();
 
   const [updating, setUpdating] = useState(false);
-  const [stageInput, setStageInput] = useState<LettuceStage>(lifecycle.stage);
-  const [durationInput, setDurationInput] = useState(String(lifecycle.durationValue));
-  const [unitInput, setUnitInput] = useState<DurationUnit>(lifecycle.durationUnit);
-  const [stageConfirmVisible, setStageConfirmVisible] = useState(false);
+  const [ageInput, setAgeInput] = useState(String(lifecycle.ageDays));
+  const [ageConfirmVisible, setAgeConfirmVisible] = useState(false);
 
+  const [healthEditing, setHealthEditing] = useState(false);
   const [selectedRating, setSelectedRating] = useState<string | null>(null);
   const [healthConfirmVisible, setHealthConfirmVisible] = useState(false);
 
@@ -33,23 +32,31 @@ export default function LifecycleScreen() {
   const alreadyLoggedToday = !!latestHealthEntry && new Date(latestHealthEntry.loggedAt).toDateString() === today;
 
   const openUpdate = () => {
-    setStageInput(lifecycle.stage);
-    setDurationInput(String(lifecycle.durationValue));
-    setUnitInput(lifecycle.durationUnit);
+    setAgeInput(String(lifecycle.ageDays));
     setUpdating(true);
   };
 
-  const confirmUpdateStage = () => {
-    const value = Math.max(1, parseInt(durationInput, 10) || 1);
-    setLifecycle(stageInput, value, unitInput);
-    setStageConfirmVisible(false);
+  const confirmUpdateAge = () => {
+    const value = Math.max(1, parseInt(ageInput, 10) || 1);
+    setLifecycle(value);
+    setAgeConfirmVisible(false);
     setUpdating(false);
+  };
+
+  const openEditHealth = () => {
+    setSelectedRating(latestHealthEntry.rating);
+    setHealthEditing(true);
   };
 
   const confirmLogHealth = () => {
     if (!selectedRating) return;
-    logHealth(selectedRating);
+    if (healthEditing && latestHealthEntry) {
+      editHealthLog(latestHealthEntry.id, selectedRating);
+    } else {
+      logHealth(selectedRating);
+    }
     setSelectedRating(null);
+    setHealthEditing(false);
     setHealthConfirmVisible(false);
   };
 
@@ -61,12 +68,12 @@ export default function LifecycleScreen() {
         <Card style={styles.section}>
           <View style={styles.panelBody}>
             <View style={styles.stepperRow}>
-              {stageOrder.map((stage, i) => (
-                <React.Fragment key={stage}>
+              {stageOrder.map((s, i) => (
+                <React.Fragment key={s}>
                   <View style={styles.stepperItem}>
                     <View style={[styles.stepperDot, i <= stageIndex && styles.stepperDotActive]} />
                     <Text style={[styles.stepperLabel, i === stageIndex && styles.stepperLabelActive]}>
-                      {stageLabels[stage]}
+                      {stageLabels[s]}
                     </Text>
                   </View>
                   {i < stageOrder.length - 1 && (
@@ -77,60 +84,31 @@ export default function LifecycleScreen() {
             </View>
 
             <Text style={styles.statement}>
-              Your lettuce is currently in the <Text style={styles.statementBold}>{stageLabels[lifecycle.stage]}</Text> stage —{' '}
-              {lifecycle.durationUnit === 'day' ? 'Day' : 'Week'} {lifecycle.durationValue}.
+              Your lettuce is currently in the <Text style={styles.statementBold}>{stageLabels[stage]}</Text> stage —{' '}
+              Age {lifecycle.ageDays} {lifecycle.ageDays === 1 ? 'day' : 'days'}.
             </Text>
+            <Text style={styles.hint}>The stage updates automatically based on age — there's no manual stage picker.</Text>
 
             {!updating ? (
-              <Button label="Update Stage" variant="outline" onPress={openUpdate} style={{ marginTop: spacing.md }} />
+              <Button label="Update Age" variant="outline" onPress={openUpdate} style={{ marginTop: spacing.md }} />
             ) : (
               <View style={styles.updateBox}>
-                <Text style={styles.fieldLabel}>Set stage</Text>
-                <View style={styles.chipRow}>
-                  {stageOrder.map((stage) => (
-                    <TouchableOpacity
-                      key={stage}
-                      onPress={() => setStageInput(stage)}
-                      style={[styles.chip, stageInput === stage && styles.chipActive]}
-                    >
-                      <Text style={[styles.chipText, stageInput === stage && styles.chipTextActive]}>{stageLabels[stage]}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <View style={styles.durationRow}>
-                  <View style={styles.durationInputWrap}>
-                    <Text style={styles.fieldLabel}>Duration</Text>
-                    <TextInput
-                      style={styles.durationInput}
-                      value={durationInput}
-                      onChangeText={setDurationInput}
-                      keyboardType="number-pad"
-                      placeholder="1"
-                      placeholderTextColor={colors.textMuted}
-                    />
-                  </View>
-                  <View style={styles.unitChipRow}>
-                    {(['day', 'week'] as DurationUnit[]).map((unit) => (
-                      <TouchableOpacity
-                        key={unit}
-                        onPress={() => setUnitInput(unit)}
-                        style={[styles.chip, unitInput === unit && styles.chipActive]}
-                      >
-                        <Text style={[styles.chipText, unitInput === unit && styles.chipTextActive]}>
-                          {unit === 'day' ? 'Day' : 'Week'}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
+                <Text style={styles.fieldLabel}>Age (Days)</Text>
+                <TextInput
+                  style={styles.ageInput}
+                  value={ageInput}
+                  onChangeText={setAgeInput}
+                  keyboardType="number-pad"
+                  placeholder="1"
+                  placeholderTextColor={colors.textMuted}
+                />
 
                 <View style={styles.updateActions}>
                   <TouchableOpacity onPress={() => setUpdating(false)} style={styles.cancelLink}>
                     <Text style={styles.cancelLinkText}>Cancel</Text>
                   </TouchableOpacity>
                   <View style={{ flex: 1 }}>
-                    <Button label="Save" onPress={() => setStageConfirmVisible(true)} />
+                    <Button label="Save" onPress={() => setAgeConfirmVisible(true)} />
                   </View>
                 </View>
               </View>
@@ -141,7 +119,7 @@ export default function LifecycleScreen() {
         <Card style={styles.section}>
           <PanelHeader title="Lettuce Health" />
           <View style={styles.panelBody}>
-            {!alreadyLoggedToday ? (
+            {!alreadyLoggedToday || healthEditing ? (
               <>
                 <Text style={styles.fieldLabel}>Rate your lettuce health</Text>
                 <View style={styles.ratingList}>
@@ -160,28 +138,46 @@ export default function LifecycleScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-                <Button
-                  label="Data Log"
-                  variant="outline"
-                  onPress={() => setHealthConfirmVisible(true)}
-                  disabled={!selectedRating}
-                  style={{ marginTop: spacing.md }}
-                />
+                <View style={styles.updateActions}>
+                  {healthEditing && (
+                    <TouchableOpacity onPress={() => { setHealthEditing(false); setSelectedRating(null); }} style={styles.cancelLink}>
+                      <Text style={styles.cancelLinkText}>Cancel</Text>
+                    </TouchableOpacity>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Button
+                      label={healthEditing ? 'Save' : 'Data Log'}
+                      variant="outline"
+                      onPress={() => setHealthConfirmVisible(true)}
+                      disabled={!selectedRating}
+                    />
+                  </View>
+                </View>
               </>
             ) : (
-              <Text style={styles.loggedToday}>Logged today: {latestHealthEntry.rating}</Text>
+              <>
+                <Text style={styles.loggedToday}>Logged today: {latestHealthEntry.rating}</Text>
+                <Text style={styles.loggedTodayTime}>
+                  {new Date(latestHealthEntry.loggedAt).toLocaleString('en-US', { month: 'short', day: '2-digit', hour: 'numeric', minute: '2-digit' })}
+                </Text>
+                <TouchableOpacity onPress={openEditHealth} style={styles.editLink}>
+                  <Ionicons name="create-outline" size={14} color={colors.mint} />
+                  <Text style={styles.editLinkText}>Edit today's rating</Text>
+                </TouchableOpacity>
+                <Text style={styles.hint}>Editable until midnight — tomorrow's question will ask again.</Text>
+              </>
             )}
           </View>
         </Card>
 
         <Card style={styles.section}>
-          <PanelHeader title="Health Log" subtitle="Lettuce health by day" />
+          <PanelHeader title="Health Log" subtitle="Lettuce health by date and time" />
           <View style={styles.body}>
             {healthLog.length ? (
               healthLog.map((entry, i) => (
                 <View key={entry.id} style={[styles.logRow, i === healthLog.length - 1 && styles.noBorder]}>
                   <Text style={styles.logDay}>
-                    {new Date(entry.loggedAt).toLocaleDateString('en-US', { month: 'short', day: '2-digit' })}
+                    {new Date(entry.loggedAt).toLocaleString('en-US', { month: 'short', day: '2-digit', hour: 'numeric', minute: '2-digit' })}
                   </Text>
                   <Text style={styles.logRating}>{entry.rating}</Text>
                 </View>
@@ -194,18 +190,18 @@ export default function LifecycleScreen() {
       </ScrollView>
 
       <ConfirmModal
-        visible={stageConfirmVisible}
-        title="Update lifecycle stage?"
-        message={`Set the stage to ${stageLabels[stageInput]} (${unitInput === 'day' ? 'Day' : 'Week'} ${durationInput || 1}).`}
+        visible={ageConfirmVisible}
+        title="Update lettuce age?"
+        message={`Set the age to ${ageInput || 1} day(s). Stage will update automatically.`}
         confirmLabel="Save"
-        onConfirm={confirmUpdateStage}
-        onCancel={() => setStageConfirmVisible(false)}
+        onConfirm={confirmUpdateAge}
+        onCancel={() => setAgeConfirmVisible(false)}
       />
       <ConfirmModal
         visible={healthConfirmVisible}
-        title="Log lettuce health?"
+        title={healthEditing ? "Update today's rating?" : 'Log lettuce health?'}
         message={selectedRating ? `Record today's rating as "${selectedRating}".` : ''}
-        confirmLabel="Data Log"
+        confirmLabel={healthEditing ? 'Save' : 'Data Log'}
         onConfirm={confirmLogHealth}
         onCancel={() => setHealthConfirmVisible(false)}
       />
@@ -231,24 +227,14 @@ const styles = StyleSheet.create({
 
   statement: { fontSize: 15, color: colors.textBody, lineHeight: 22 },
   statementBold: { fontWeight: '700', color: colors.textPrimary },
+  hint: { fontSize: 11, color: colors.textMuted, marginTop: spacing.sm, lineHeight: 16 },
 
   updateBox: { marginTop: spacing.lg, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.divider },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.sm },
-  chipRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
-  chip: {
-    paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.pill,
-    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background,
-  },
-  chipActive: { backgroundColor: colors.mint, borderColor: colors.mint },
-  chipText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
-  chipTextActive: { color: colors.white },
-  durationRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md, alignItems: 'flex-end' },
-  durationInputWrap: { width: 90 },
-  durationInput: {
+  ageInput: {
     borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: colors.background,
-    paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: 14, textAlign: 'center', color: colors.textPrimary,
+    paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: 14, color: colors.textPrimary, width: 120,
   },
-  unitChipRow: { flexDirection: 'row', gap: spacing.sm },
   updateActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.lg },
   cancelLink: { paddingVertical: 12, paddingHorizontal: spacing.sm },
   cancelLinkText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
@@ -258,6 +244,9 @@ const styles = StyleSheet.create({
   ratingText: { fontSize: 13, color: colors.textBody },
   ratingTextActive: { color: colors.textPrimary, fontWeight: '600' },
   loggedToday: { fontSize: 14, color: colors.okText, fontWeight: '600' },
+  loggedTodayTime: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  editLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.md },
+  editLinkText: { fontSize: 13, fontWeight: '600', color: colors.mint },
 
   logRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

@@ -73,6 +73,13 @@ db.exec(`
   );
 `);
 
+// Add the "disabled" column to an already-existing users table (CREATE TABLE IF NOT EXISTS
+// above won't add columns to a table that already exists from before this change).
+const userColumns = db.prepare('PRAGMA table_info(users)').all();
+if (!userColumns.some((c) => c.name === 'disabled')) {
+  db.exec('ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0');
+}
+
 // Seed default switches if empty (first run only)
 const switchDefaults = { roof: 1, valve: 0, timer: 1, notifications: 1, skipRain: 1 };
 const insertSwitch = db.prepare('INSERT OR IGNORE INTO switches (key, value) VALUES (?, ?)');

@@ -49,6 +49,27 @@ export const getLogs = (type: 'temp-humidity' | 'soil' | 'valve' | 'roof') =>
 export const updateMe = (updates: Partial<{ name: string; email: string; password: string; role: string; color: string }>) =>
   api.patch<AuthUser>('/users/me', updates);
 
+// ---- Admin user management ----
+export type AdminUserRecord = {
+  id: number;
+  name: string;
+  email: string;
+  role: 'Administrator' | 'User';
+  password_hash: string;
+  disabled: boolean;
+  created_at: string;
+};
+
+export const listUsers = () => api.get<AdminUserRecord[]>('/users');
+
+export const createUser = (user: { name: string; email: string; password: string; role: 'Administrator' | 'User' }) =>
+  api.post<AdminUserRecord>('/users', user);
+
+export const updateUser = (id: number, updates: Partial<{ name: string; email: string; role: string; disabled: boolean }>) =>
+  api.patch<AdminUserRecord>(`/users/${id}`, updates);
+
+export const deleteUser = (id: number) => api.delete<{ message: string }>(`/users/${id}`);
+
 // ---- Lettuce health / heat-stress ML ----
 export type HealthLogRecord = {
   id: number;

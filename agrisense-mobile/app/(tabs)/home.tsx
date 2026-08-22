@@ -8,13 +8,13 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useFarmData } from '../../context/FarmDataContext';
 import { stageLabels, sensorMeta, WeatherCondition } from '../../data/mockData';
 import Card from '../../components/ui/Card';
 import PanelHeader from '../../components/ui/PanelHeader';
 import MetricCard from '../../components/ui/MetricCard';
+import TopHeader from '../../components/ui/TopHeader';
 
 const WEATHER_ICON: Record<WeatherCondition, keyof typeof Ionicons.glyphMap> = {
   sunny: 'sunny',
@@ -26,6 +26,7 @@ export default function HomeScreen() {
   const {
     reading,
     lifecycle,
+    stage,
     heatIndex,
     waterLevel,
     lastWatering,
@@ -42,18 +43,11 @@ export default function HomeScreen() {
   const waterLevelLabel = waterLevel < 20 ? 'Low' : waterLevel < 40 ? 'Getting Low' : 'Normal';
 
   return (
-    <SafeAreaView style={styles.flex} edges={['top']}>
+    <View style={styles.flex}>
+      <TopHeader />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.pageTitle}>Dashboard</Text>
-            <Text style={styles.pageSub}>Live sensor readings — updates every 30 seconds</Text>
-          </View>
-          <View style={styles.onlineBadge}>
-            <View style={styles.onlineDot} />
-            <Text style={styles.onlineText}>Online</Text>
-          </View>
-        </View>
+        <Text style={styles.pageTitle}>Dashboard</Text>
+        <Text style={styles.pageSub}>Live sensor readings — updates every 30 seconds</Text>
 
         {/* Out-of-calibration alert banner */}
         {outOfCalibration.length > 0 && (
@@ -142,7 +136,7 @@ export default function HomeScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.bannerLabel}>Lettuce Lifecycle</Text>
                 <Text style={styles.bannerValue}>
-                  {stageLabels[lifecycle.stage]} · {lifecycle.durationUnit === 'day' ? 'Day' : 'Week'} {lifecycle.durationValue}
+                  {stageLabels[stage]} · Age {lifecycle.ageDays} {lifecycle.ageDays === 1 ? 'day' : 'days'}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
@@ -203,22 +197,15 @@ export default function HomeScreen() {
           </Card>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.lg, paddingBottom: 40 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.lg },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary },
-  pageSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  onlineBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: colors.okBg, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5,
-  },
-  onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.dotEmerald },
-  onlineText: { fontSize: 11, fontWeight: '600', color: colors.okText },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary, marginBottom: 2 },
+  pageSub: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.lg },
   section: { marginBottom: spacing.lg },
   sectionLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: spacing.lg },

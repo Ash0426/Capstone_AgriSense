@@ -58,7 +58,7 @@ export default function SystemLogsScreen() {
             onPress={() => setTab(t.key)}
             style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
           >
-            <Text style={[styles.tabBtnText, tab === t.key && styles.tabBtnTextActive]}>{t.label}</Text>
+            <Text style={[styles.tabBtnText, tab === t.key && styles.tabBtnTextActive]} numberOfLines={1}>{t.label}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -89,7 +89,7 @@ export default function SystemLogsScreen() {
           {tab === 'valve' &&
             (valve.length ? (
               valve.map((row, i) => (
-                <LogRow key={i} time={row.time} statusType={row.statusType as BadgeStatus} statusLabel={row.action}>
+                <LogRow key={i} time={row.time} statusType={row.statusType as BadgeStatus} statusLabel={row.action} by={row.by}>
                   <Text style={styles.cellSub}>{row.reason}</Text>
                 </LogRow>
               ))
@@ -128,11 +128,13 @@ function LogRow({
   time,
   statusType,
   statusLabel,
+  by,
   children,
 }: {
   time: string;
   statusType: BadgeStatus;
   statusLabel: string;
+  by?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -140,6 +142,7 @@ function LogRow({
       <View style={{ flex: 1 }}>
         <Text style={styles.cellTime}>{time}</Text>
         {children}
+        {by ? <Text style={styles.cellBy}>by {by}</Text> : null}
       </View>
       <Badge label={statusLabel} status={statusType} />
     </View>
@@ -149,11 +152,14 @@ function LogRow({
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   headerPad: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
-  tabBarScroll: { flexGrow: 0, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
-  tabBar: { gap: spacing.sm, paddingBottom: spacing.sm },
-  tabBtn: { paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  tabBarScroll: { flexGrow: 0, marginBottom: spacing.sm },
+  tabBar: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  tabBtn: {
+    flexShrink: 0, minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radius.pill,
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
+  },
   tabBtnActive: { backgroundColor: colors.mint, borderColor: colors.mint },
-  tabBtnText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+  tabBtnText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, lineHeight: 16 },
   tabBtnTextActive: { color: colors.white },
   scroll: { padding: spacing.lg, paddingTop: 0, paddingBottom: 40 },
   row: {
@@ -163,6 +169,7 @@ const styles = StyleSheet.create({
   cellTime: { fontSize: 12, color: colors.textMuted, marginBottom: 2 },
   cellMain: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
   cellSub: { fontSize: 12, color: colors.textBody, marginTop: 2 },
+  cellBy: { fontSize: 10, color: colors.textMuted, marginTop: 2, fontStyle: 'italic' },
   downloadWrap: { padding: spacing.lg },
   emptyRow: { padding: spacing.xl, alignItems: 'center' },
   emptyText: { fontSize: 13, color: colors.textMuted },

@@ -3,17 +3,18 @@
 // FarmDataContext: crop watered, tank low, limit exceeded, daily crop status, lifecycle change.
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '../../constants/theme';
 import { useFarmData } from '../../context/FarmDataContext';
 import Card from '../../components/ui/Card';
 import ListItem from '../../components/ui/ListItem';
+import TopHeader from '../../components/ui/TopHeader';
 
 export default function NotificationScreen() {
   const { notifications } = useFarmData();
 
   return (
-    <SafeAreaView style={styles.flex} edges={['top']}>
+    <View style={styles.flex}>
+      <TopHeader />
       <View style={styles.headerPad}>
         <Text style={styles.pageTitle}>Notifications</Text>
         <Text style={styles.pageSub}>Watering, tank level, limits, and crop status</Text>
@@ -42,15 +43,15 @@ export default function NotificationScreen() {
           </Card>
         )}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   headerPad: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary },
-  pageSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary, marginBottom: 2 },
+  pageSub: { fontSize: 12, color: colors.textMuted },
   list: { padding: spacing.lg, paddingTop: spacing.sm },
   itemBody: { paddingHorizontal: spacing.lg },
   time: { fontSize: 11, color: colors.textMuted },

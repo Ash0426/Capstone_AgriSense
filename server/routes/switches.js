@@ -25,15 +25,17 @@ router.patch('/:key', requireAuth, (req, res) => {
 
   if (key === 'roof' || key === 'valve') {
     const time = new Date().toLocaleString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', ' ·');
+    const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(req.userId);
+    const by = actor?.name ?? 'Unknown';
     if (key === 'roof') {
       db.prepare('INSERT INTO logs (type, payload) VALUES (?, ?)').run(
         'roof',
-        JSON.stringify({ time, action: value ? 'Open' : 'Closed', statusType: value ? 'ok' : 'danger' })
+        JSON.stringify({ time, action: value ? 'Open' : 'Closed', statusType: value ? 'ok' : 'danger', by })
       );
     } else {
       db.prepare('INSERT INTO logs (type, payload) VALUES (?, ?)').run(
         'valve',
-        JSON.stringify({ time, action: value ? 'Opened' : 'Closed', duration: '—', reason: 'Manual override', statusType: 'ok' })
+        JSON.stringify({ time, action: value ? 'Opened' : 'Closed', duration: '—', reason: 'Manual override', statusType: 'ok', by })
       );
     }
   }
