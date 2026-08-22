@@ -41,28 +41,37 @@ export const getSwitches = () => api.get<SwitchesState>('/switches');
 export const setSwitch = (key: keyof SwitchesState, value: boolean) =>
   api.patch<{ key: string; value: boolean }>(`/switches/${key}`, { value });
 
-// ---- Schedule ----
-export type Schedule = { morningTime: string; durationMinutes: number };
-
-export const getSchedule = () => api.get<Schedule>('/schedule');
-export const updateSchedule = (schedule: Schedule) => api.put<Schedule>('/schedule', schedule);
-
 // ---- Logs ----
-export type LogType = 'temp-humidity' | 'soil' | 'valve' | 'roof';
-
-export const getLogs = (type: LogType) => api.get<Record<string, string>[]>(`/logs/${type}`);
-
-// ---- Notifications ----
-export type NotificationItem = { id: number; icon: string; iconBg: string; title: string; desc: string; time: string };
-
-export const getNotifications = () => api.get<NotificationItem[]>('/notifications');
+export const getLogs = (type: 'temp-humidity' | 'soil' | 'valve' | 'roof') =>
+  api.get<Record<string, string>[]>(`/logs/${type}`);
 
 // ---- Users / Profile ----
-export const getMe = () => api.get<AuthUser>('/users/me');
-
 export const updateMe = (updates: Partial<{ name: string; email: string; password: string; role: string; color: string }>) =>
   api.patch<AuthUser>('/users/me', updates);
 
-export type ActivityItem = { id: number; action: string; time: string };
+// ---- Lettuce health / heat-stress ML ----
+export type HealthLogRecord = {
+  id: number;
+  user_id: number;
+  rating: string;
+  stressed: 0 | 1;
+  air_temp: number | null;
+  air_humidity: number | null;
+  soil_moisture: number | null;
+  created_at: string;
+};
 
-export const getMyActivity = () => api.get<ActivityItem[]>('/users/me/activity');
+export const logHealthRating = (rating: string) => api.post<HealthLogRecord>('/health-log', { rating });
+
+export type HeatStressPrediction =
+  | { status: 'insufficient-data'; collected: number; required: number }
+  | {
+      status: 'ok';
+      risk: 'low' | 'moderate' | 'high';
+      probability: number;
+      trainedOn: number;
+      topFactor: string;
+      latestReading: { airTemp: number; airHumidity: number; soilMoisture: number };
+    };
+
+export const getHeatStressPrediction = () => api.get<HeatStressPrediction>('/ml/heat-stress');

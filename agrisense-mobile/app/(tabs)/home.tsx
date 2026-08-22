@@ -33,7 +33,10 @@ export default function HomeScreen() {
     predictedWatering,
     automationLimits,
     outOfCalibration,
+    heatStress,
   } = useFarmData();
+
+  const showHeatStressBanner = heatStress?.status === 'ok' && heatStress.risk !== 'low';
 
   const waterLevelStatus = waterLevel < 20 ? 'danger' : waterLevel < 40 ? 'warn' : 'ok';
   const waterLevelLabel = waterLevel < 20 ? 'Low' : waterLevel < 40 ? 'Getting Low' : 'Normal';
@@ -66,6 +69,20 @@ export default function HomeScreen() {
               ))}
             </View>
           </View>
+        )}
+
+        {/* Heat stress risk banner (Random Forest prediction, trained on real health-log data) */}
+        {showHeatStressBanner && heatStress?.status === 'ok' && (
+          <TouchableOpacity onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'heatIndex' } })}>
+            <View style={[styles.alertBanner, heatStress.risk === 'moderate' && styles.alertBannerModerate]}>
+              <Ionicons name="thermometer" size={18} color={heatStress.risk === 'moderate' ? colors.warnText : colors.dangerText} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.alertText, heatStress.risk === 'moderate' && styles.alertTextModerate]}>
+                  {heatStress.risk === 'high' ? 'High' : 'Moderate'} heat stress risk predicted ({Math.round(heatStress.probability * 100)}%) — tap for details
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
         )}
 
         {/* Live sensor readings — tap any card for its data log + calibration */}
@@ -120,11 +137,11 @@ export default function HomeScreen() {
         {/* Lettuce Lifecycle banner */}
         <TouchableOpacity onPress={() => router.push('/lifecycle')}>
           <Card style={styles.section}>
-            <View style={styles.lifecycleBanner}>
+            <View style={styles.bannerRow}>
               <Ionicons name="leaf" size={22} color={colors.mint} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.lifecycleLabel}>Lettuce Lifecycle</Text>
-                <Text style={styles.lifecycleValue}>
+                <Text style={styles.bannerLabel}>Lettuce Lifecycle</Text>
+                <Text style={styles.bannerValue}>
                   {stageLabels[lifecycle.stage]} · {lifecycle.durationUnit === 'day' ? 'Day' : 'Week'} {lifecycle.durationValue}
                 </Text>
               </View>
@@ -144,24 +161,47 @@ export default function HomeScreen() {
           </View>
         </Card>
 
-        {/* Weekly weather + predicted watering */}
-        <Card style={styles.section}>
-          <PanelHeader title="Weekly Weather Summary" subtitle="Predicted watering schedule for the week" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weatherRow}>
-            {weeklyWeather.map((w, i) => (
-              <View key={w.day} style={styles.weatherCol}>
-                <Text style={styles.weatherDay}>{w.day}</Text>
-                <Ionicons name={WEATHER_ICON[w.condition]} size={22} color={colors.mint} style={{ marginVertical: 6 }} />
-                <Text style={styles.weatherTemp}>{w.high}° / {w.low}°</Text>
-                <View style={[styles.wateringPill, predictedWatering[i].watering ? styles.wateringPillOn : styles.wateringPillOff]}>
-                  <Text style={[styles.wateringPillText, predictedWatering[i].watering ? styles.wateringPillTextOn : styles.wateringPillTextOff]}>
-                    {predictedWatering[i].watering ? 'Watering' : 'Skipped'}
-                  </Text>
+        {/* Weekly weather + predicted watering — tap for the full forecast & suggestion */}
+        <TouchableOpacity onPress={() => router.push('/weekly-weather')}>
+          <Card style={styles.section}>
+            <PanelHeader
+              title="Weekly Weather Summary"
+              subtitle="Predicted watering schedule for the week"
+              right={<Ionicons name="chevron-forward" size={18} color={colors.textMuted} />}
+            />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weatherRow}>
+              {weeklyWeather.map((w, i) => (
+                <View key={w.day} style={styles.weatherCol}>
+                  <Text style={styles.weatherDay}>{w.day}</Text>
+                  <Ionicons name={WEATHER_ICON[w.condition]} size={22} color={colors.mint} style={{ marginVertical: 6 }} />
+                  <Text style={styles.weatherTemp}>{w.high}° / {w.low}°</Text>
+                  <View style={[styles.wateringPill, predictedWatering[i].watering ? styles.wateringPillOn : styles.wateringPillOff]}>
+                    <Text style={[styles.wateringPillText, predictedWatering[i].watering ? styles.wateringPillTextOn : styles.wateringPillTextOff]}>
+                      {predictedWatering[i].watering ? 'Watering' : 'Skipped'}
+                    </Text>
+                  </View>
                 </View>
+              ))}
+            </ScrollView>
+            <Text style={styles.weatherHint}>Tap for the full forecast and watering suggestion</Text>
+          </Card>
+        </TouchableOpacity>
+
+        {/* Watering Automation banner */}
+        <TouchableOpacity onPress={() => router.push('/automation')}>
+          <Card style={styles.section}>
+            <View style={styles.bannerRow}>
+              <Ionicons name="water" size={22} color={colors.mint} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bannerLabel}>Watering Automation</Text>
+                <Text style={styles.bannerValue}>
+                  Soil ≥ {automationLimits.soilMoistureLimit}% · Temp ≤ {automationLimits.tempLimit}°C
+                </Text>
               </View>
-            ))}
-          </ScrollView>
-        </Card>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </View>
+          </Card>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -188,11 +228,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm,
     backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.lg,
   },
+  alertBannerModerate: { backgroundColor: colors.warnBg },
   alertText: { fontSize: 12, color: colors.dangerText, fontWeight: '600', marginBottom: 2 },
+  alertTextModerate: { color: colors.warnText },
 
-  lifecycleBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
-  lifecycleLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
-  lifecycleValue: { fontSize: 15, color: colors.textPrimary, fontWeight: '700', marginTop: 2 },
+  bannerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
+  bannerLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  bannerValue: { fontSize: 15, color: colors.textPrimary, fontWeight: '700', marginTop: 2 },
+  weatherHint: { fontSize: 11, color: colors.textMuted, paddingHorizontal: spacing.lg, paddingBottom: spacing.md, marginTop: -spacing.sm },
 
   lastWateringRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
   lastWateringLabel: { fontSize: 11, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: '600' },

@@ -21,6 +21,7 @@ export default function RootLayout() {
           <Stack.Screen name="user-log" />
           <Stack.Screen name="lifecycle" />
           <Stack.Screen name="sensor/[key]" />
+          <Stack.Screen name="weekly-weather" />
         </Stack>
       </FarmDataProvider>
     </AuthProvider>

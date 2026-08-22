@@ -23,7 +23,7 @@ export default function SensorDetailScreen() {
   const { key: rawKey } = useLocalSearchParams<{ key: string }>();
   const key: SensorKey = VALID_KEYS.includes(rawKey as SensorKey) ? (rawKey as SensorKey) : 'soilMoisture';
 
-  const { sensorValues, sensorLogs, calibration, setCalibration, outOfCalibration } = useFarmData();
+  const { sensorValues, sensorLogs, calibration, setCalibration, outOfCalibration, heatStress } = useFarmData();
   const meta = sensorMeta[key];
   const value = sensorValues[key];
   const cal = calibration[key];
@@ -102,6 +102,35 @@ export default function SensorDetailScreen() {
           </View>
         </Card>
 
+        {key === 'heatIndex' && (
+          <Card style={styles.section}>
+            <PanelHeader title="Heat Stress Prediction" subtitle="Random Forest, trained on your logged health ratings" />
+            <View style={styles.panelBody}>
+              {!heatStress || heatStress.status === 'insufficient-data' ? (
+                <Text style={styles.rangeText}>
+                  Collecting data — {heatStress?.collected ?? 0} of {heatStress?.required ?? 20} health ratings logged so far.
+                  Rate your lettuce's health daily on the Lifecycle page to help predict heat stress risk.
+                </Text>
+              ) : (
+                <>
+                  <View style={styles.valueRow}>
+                    <Text style={styles.riskLabel}>
+                      {heatStress.risk === 'low' ? 'Low' : heatStress.risk === 'moderate' ? 'Moderate' : 'High'} risk
+                    </Text>
+                    <Badge
+                      label={`${Math.round(heatStress.probability * 100)}%`}
+                      status={heatStress.risk === 'low' ? 'ok' : heatStress.risk === 'moderate' ? 'warn' : 'danger'}
+                    />
+                  </View>
+                  <Text style={styles.rangeText}>
+                    Biggest factor: {heatStress.topFactor} · Trained on {heatStress.trainedOn} logged ratings
+                  </Text>
+                </>
+              )}
+            </View>
+          </Card>
+        )}
+
         <Card style={styles.section}>
           <PanelHeader title="Data Log" subtitle="Major shifts in this reading" />
           <View style={styles.body}>
@@ -141,6 +170,7 @@ const styles = StyleSheet.create({
   value: { fontSize: 32, fontWeight: '700', color: colors.textPrimary },
   unit: { fontSize: 16, fontWeight: '400', color: colors.textMuted },
   rangeText: { fontSize: 12, color: colors.textSecondary, marginTop: 6 },
+  riskLabel: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
   calibrateBox: { marginTop: spacing.lg, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.divider },
   calibrateRow: { flexDirection: 'row', gap: spacing.md },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6 },

@@ -13,8 +13,11 @@ import {
   getSwitches,
   setSwitch,
   getLogs,
+  logHealthRating,
+  getHeatStressPrediction,
   SensorReading,
   SwitchesState,
+  HeatStressPrediction,
 } from '../api/endpoints';
 import {
   defaultLifecycle,
@@ -43,6 +46,7 @@ import {
 
 const LOW_WATER_THRESHOLD = 20;
 const POLL_INTERVAL_MS = 30000;
+const HEAT_STRESS_POLL_INTERVAL_MS = 120000;
 
 function now() {
   return new Date().toLocaleString('en-US', { month: 'short', day: '2-digit', hour: 'numeric', minute: '2-digit' }).replace(',', ' ·');
@@ -102,6 +106,8 @@ type FarmDataContextValue = {
   sensorLogs: Record<SensorKey, SensorLogEntry[]>;
   outOfCalibration: SensorKey[];
   sensorValues: Record<SensorKey, number | null>;
+
+  heatStress: HeatStressPrediction | null;
 };
 
 const FarmDataContext = createContext<FarmDataContextValue | null>(null);
@@ -121,6 +127,7 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>(initialAdminUsers);
   const [calibration, setCalibrationState] = useState<Record<SensorKey, Calibration>>(initialCalibration);
   const [sensorLogs, setSensorLogs] = useState<Record<SensorKey, SensorLogEntry[]>>(initialSensorLogs);
+  const [heatStress, setHeatStress] = useState<HeatStressPrediction | null>(null);
 
   const wateringActiveRef = useRef(false);
   const breachActiveRef = useRef(false);
@@ -153,14 +160,24 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
     [addNotification, addLifecycleLog]
   );
 
+  const refreshHeatStress = useCallback(async () => {
+    try {
+      setHeatStress(await getHeatStressPrediction());
+    } catch (err) {
+      console.warn('Failed to load heat-stress prediction:', err);
+    }
+  }, []);
+
   const logHealth = useCallback(
     (rating: string) => {
       setHealthLog((prev) => [{ id: `${Date.now()}`, rating, loggedAt: new Date().toISOString() }, ...prev]);
       addNotification('daily-status', 'sunny', 'amber', 'Daily crop status', `Health logged: ${rating}`);
       addLifecycleLog(`Health rated: ${rating}`, healthSeverity(rating));
-      // TODO: POST the health rating to your backend's lettuce lifecycle table.
+      logHealthRating(rating)
+        .then(() => refreshHeatStress())
+        .catch((err) => console.warn('Failed to persist health rating:', err));
     },
-    [addNotification, addLifecycleLog]
+    [addNotification, addLifecycleLog, refreshHeatStress]
   );
 
   const setAutomationLimits = useCallback((partial: Partial<AutomationLimits>) => {
@@ -265,6 +282,15 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isLoggedIn, automationLimits, addNotification, waterNow, addSensorLog]);
 
+  // Heat-stress prediction: fetch on login, then on a slow cadence — retraining every 30s
+  // like the sensor poll would be wasteful even though each request is individually cheap.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    refreshHeatStress();
+    const id = setInterval(refreshHeatStress, HEAT_STRESS_POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [isLoggedIn, refreshHeatStress]);
+
   // One-time hydration: seed "last watering" from the real valve log, and check tank level.
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -334,6 +360,7 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
         sensorLogs,
         outOfCalibration,
         sensorValues,
+        heatStress,
       }}
     >
       {children}

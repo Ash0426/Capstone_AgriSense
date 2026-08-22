@@ -42,25 +42,10 @@ db.exec(`
     value INTEGER NOT NULL
   );
 
-  CREATE TABLE IF NOT EXISTS schedule (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    morning_time TEXT NOT NULL,
-    duration_minutes INTEGER NOT NULL
-  );
-
   CREATE TABLE IF NOT EXISTS logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     type TEXT NOT NULL,           -- 'temp_humidity' | 'soil' | 'valve' | 'roof'
     payload TEXT NOT NULL,        -- JSON string, shape depends on type
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS notifications (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    icon TEXT NOT NULL,
-    icon_bg TEXT NOT NULL,
-    title TEXT NOT NULL,
-    desc TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -71,14 +56,27 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
+
+  -- Farmer-submitted lettuce health ratings, each paired with a snapshot of the sensor
+  -- reading at that moment. This is the labeled training data for the heat-stress model
+  -- in routes/health.js — "stressed" is derived from the rating (Dried out/Drooping = 1).
+  CREATE TABLE IF NOT EXISTS health_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    rating TEXT NOT NULL,
+    stressed INTEGER NOT NULL,
+    air_temp REAL,
+    air_humidity REAL,
+    soil_moisture REAL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
 `);
 
-// Seed default switches + schedule row if empty (first run only)
+// Seed default switches if empty (first run only)
 const switchDefaults = { roof: 1, valve: 0, timer: 1, notifications: 1, skipRain: 1 };
 const insertSwitch = db.prepare('INSERT OR IGNORE INTO switches (key, value) VALUES (?, ?)');
 for (const [key, value] of Object.entries(switchDefaults)) insertSwitch.run(key, value);
-
-db.prepare('INSERT OR IGNORE INTO schedule (id, morning_time, duration_minutes) VALUES (1, ?, ?)').run('06:03', 12);
 
 // Seed one sensor reading + a demo user so the app has something to show on first run
 const readingCount = db.prepare('SELECT COUNT(*) AS c FROM sensor_readings').get().c;
@@ -97,8 +95,8 @@ if (userCount === 0) {
   console.log('Seeded demo user -> email: trinove.corp@gmail.com  password: password123');
 }
 
-// Seed a few demo log rows + notifications so the History and Notification screens
-// aren't empty before any real ESP32 readings come in. Safe to delete these rows any time.
+// Seed a few demo log rows so the History screen isn't empty before any real ESP32
+// readings come in. Safe to delete these rows any time.
 const logCount = db.prepare('SELECT COUNT(*) AS c FROM logs').get().c;
 if (logCount === 0) {
   const insertLog = db.prepare('INSERT INTO logs (type, payload) VALUES (?, ?)');
@@ -107,14 +105,6 @@ if (logCount === 0) {
   insertLog.run('soil', JSON.stringify({ time: 'Jun 22 · 08:30', moisture: '48%', status: 'Dry', statusType: 'warn' }));
   insertLog.run('valve', JSON.stringify({ time: 'Jun 22 · 08:32', action: 'Opened', duration: '—', reason: 'Soil too dry (below 55%)', statusType: 'ok' }));
   insertLog.run('roof', JSON.stringify({ time: 'Jun 22 · 08:31', action: 'Closed', tempGauge: '35.2°C', statusType: 'danger' }));
-}
-
-const notificationCount = db.prepare('SELECT COUNT(*) AS c FROM notifications').get().c;
-if (notificationCount === 0) {
-  const insertNotif = db.prepare('INSERT INTO notifications (icon, icon_bg, title, desc) VALUES (?, ?, ?, ?)');
-  insertNotif.run('thermometer', 'amber', 'High temperature alert', 'Air temperature reached 35.2°C');
-  insertNotif.run('water', 'blue', 'Watering started', 'Soil moisture dropped below 55% threshold');
-  insertNotif.run('home', 'green', 'Roof closed automatically', 'Triggered by high temperature');
 }
 
 module.exports = db;

@@ -69,29 +69,11 @@ Response 200: `{ "key": "roof", "value": true }`
 
 ---
 
-## Schedule
-
-### GET /schedule  (protected)
-Response 200: `{ "morningTime": "06:03", "durationMinutes": 12 }`
-
-### PUT /schedule  (protected)
-Request: `{ "morningTime": "06:03", "durationMinutes": 12 }`
-Response 200: `{ "morningTime": "06:03", "durationMinutes": 12 }`
-
----
-
 ## Logs
 
 ### GET /logs/:type  (protected)
 `:type` is one of `temp-humidity`, `soil`, `valve`, `roof`
 Response 200: `[{ "time": "...", ... type-specific fields } ]`
-
----
-
-## Notifications
-
-### GET /notifications  (protected)
-Response 200: `[{ "id": 1, "icon": "thermometer", "iconBg": "amber", "title": "...", "desc": "...", "time": "..." }]`
 
 ---
 
@@ -106,3 +88,24 @@ Response 200: updated user object
 
 ### GET /users/me/activity  (protected)
 Response 200: `[{ "id": 1, "action": "...", "time": "..." }]`
+
+---
+
+## Lettuce Health / Heat Stress ML
+
+### POST /health-log  (protected)
+Persists a farmer-submitted health rating with a snapshot of the latest sensor reading —
+this is the labeled training data for the heat-stress model below.
+Request: `{ "rating": "Dried out" | "Drooping" | "Slight paleness" | "Good color and firmness" | "Vibrant green / firm and upright" }`
+Response 201: `{ "id": 1, "user_id": 1, "rating": "...", "stressed": 0 | 1, "air_temp": 35.2, "air_humidity": 72, "soil_moisture": 48, "created_at": "..." }`
+
+### GET /health-log  (protected)
+Response 200: `[{ "id": 1, "rating": "...", "stressed": 0, ... }]`
+
+### GET /ml/heat-stress  (protected)
+Trains a Random Forest classifier (`ml-random-forest`, in-process, retrained per request) on
+all `health_logs` rows and predicts risk for the latest sensor reading. Requires at least 20
+logged ratings with at least 5 of each class (stressed / not stressed) before it predicts —
+until then it honestly reports that it doesn't have enough data yet, no fabricated numbers.
+Response 200 (not enough data): `{ "status": "insufficient-data", "collected": 6, "required": 20 }`
+Response 200 (ready): `{ "status": "ok", "risk": "low" | "moderate" | "high", "probability": 0.42, "trainedOn": 23, "topFactor": "Air Temperature", "latestReading": { "airTemp": 35.2, "airHumidity": 72, "soilMoisture": 48 } }`

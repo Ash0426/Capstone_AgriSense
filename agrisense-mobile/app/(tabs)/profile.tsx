@@ -23,6 +23,7 @@ export default function ProfileScreen() {
   const { addAdminUser } = useFarmData();
 
   const [editing, setEditing] = useState(false);
+  const [username, setUsername] = useState(user?.name ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
   const [password, setPassword] = useState('');
   const [saveConfirmVisible, setSaveConfirmVisible] = useState(false);
@@ -39,15 +40,28 @@ export default function ProfileScreen() {
   const isAdmin = user?.role === 'Administrator';
 
   const openEdit = () => {
+    setUsername(user?.name ?? '');
     setEmail(user?.email ?? '');
     setPassword('');
     setEditing(true);
   };
 
+  const requestSave = () => {
+    if (!username.trim() || !email.trim()) {
+      Alert.alert('Missing info', 'Username and email cannot be empty.');
+      return;
+    }
+    setSaveConfirmVisible(true);
+  };
+
   const confirmSave = async () => {
     setSaving(true);
     try {
-      const updated = await updateMe(password ? { email: email.trim(), password } : { email: email.trim() });
+      const updated = await updateMe({
+        name: username.trim(),
+        email: email.trim(),
+        ...(password ? { password } : {}),
+      });
       setUser(updated);
       setPassword('');
       setEditing(false);
@@ -96,13 +110,26 @@ export default function ProfileScreen() {
               <Text style={styles.avatarInitial}>{(user?.name || 'U').charAt(0)}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.userName}>{user?.name ?? '—'}</Text>
+              <Text style={styles.userName}>{(editing ? username : user?.name) || '—'}</Text>
               <Text style={styles.userRole}>{user?.role ?? '—'}</Text>
             </View>
           </View>
 
           <View style={styles.body}>
-            <Text style={styles.fieldLabel}>Email</Text>
+            <Text style={styles.fieldLabel}>Username</Text>
+            {editing ? (
+              <TextInput
+                style={styles.input}
+                value={username}
+                onChangeText={setUsername}
+                placeholder="Username"
+                placeholderTextColor={colors.textMuted}
+              />
+            ) : (
+              <Text style={styles.readValue}>{user?.name ?? '—'}</Text>
+            )}
+
+            <Text style={[styles.fieldLabel, { marginTop: spacing.lg }]}>Email</Text>
             {editing ? (
               <TextInput
                 style={styles.input}
@@ -137,7 +164,7 @@ export default function ProfileScreen() {
                 <TouchableOpacity onPress={() => setEditing(false)} style={styles.cancelLink}>
                   <Text style={styles.cancelLinkText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.cornerBtn} onPress={() => setSaveConfirmVisible(true)}>
+                <TouchableOpacity style={styles.cornerBtn} onPress={requestSave}>
                   <Ionicons name="checkmark" size={14} color={colors.white} />
                   <Text style={styles.cornerBtnText}>Save</Text>
                 </TouchableOpacity>
@@ -232,7 +259,7 @@ export default function ProfileScreen() {
         <ConfirmModal
           visible={saveConfirmVisible}
           title="Save profile changes?"
-          message="This updates the email and/or password used to log in."
+          message="This updates your username, email, and/or password."
           confirmLabel="Save"
           onConfirm={confirmSave}
           onCancel={() => setSaveConfirmVisible(false)}

@@ -4,7 +4,7 @@
     "slug": "agrisense-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon-logo.png",
+    "icon": "./assets/images/logo-name.png",
     "scheme": "agrisensemobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,15 +14,15 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
-        "foregroundImage": "./assets/images/icon-logo.png",
-        "monochromeImage": "./assets/images/icon-logo.png"
+        "foregroundImage": "./assets/images/logo-name.png",
+        "monochromeImage": "./assets/images/logo-name.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/icon-logo.png"
+      "favicon": "./assets/images/logo-name.png"
     },
     "plugins": [
       "expo-router",

@@ -16,7 +16,6 @@ const STEP_UP_WINDOW_MS = 24 * 60 * 60 * 1000;
 type AuthContextValue = {
   user: AuthUser | null;
   isLoggedIn: boolean;
-  pendingUser: AuthUser | null;
   login: (email: string, password: string) => Promise<{ requiresStepUp: boolean }>;
   completeStepUp: () => void;
   logout: () => void;
@@ -65,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoggedIn: !!user, pendingUser, login, completeStepUp, logout, setUser }}
+      value={{ user, isLoggedIn: !!user, login, completeStepUp, logout, setUser }}
     >
       {children}
     </AuthContext.Provider>
