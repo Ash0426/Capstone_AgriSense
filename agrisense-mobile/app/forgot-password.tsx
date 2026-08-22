@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../constants/theme';
 import Button from '../components/ui/Button';
 import ScreenHeader from '../components/ui/ScreenHeader';
@@ -48,6 +49,7 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
+    <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
     <ScrollView contentContainerStyle={styles.scroll}>
       <ScreenHeader
         title="Reset password"
@@ -99,10 +101,12 @@ export default function ForgotPasswordScreen() {
         </>
       )}
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1, backgroundColor: colors.background },
   scroll: { flexGrow: 1, backgroundColor: colors.background, padding: spacing.xxl },
   field: { marginBottom: spacing.lg },
   fieldLabel: { fontSize: 13, fontWeight: '500', color: colors.textSecondary, marginBottom: 6 },

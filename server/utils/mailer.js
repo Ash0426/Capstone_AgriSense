@@ -19,4 +19,14 @@ async function sendOtpEmail(toEmail, code) {
   });
 }
 
-module.exports = { sendOtpEmail };
+async function sendLoginOtpEmail(toEmail, code) {
+  await transporter.sendMail({
+    from: `"AgriSense" <${process.env.SMTP_USER}>`,
+    to: toEmail,
+    subject: 'Your AgriSense login verification code',
+    text: `Your one-time login code is ${code}. It expires in 10 minutes.`,
+    html: `<p>Your AgriSense login verification code is:</p><h2>${code}</h2><p>This code expires in 10 minutes.</p>`,
+  });
+}
+
+module.exports = { sendOtpEmail, sendLoginOtpEmail };

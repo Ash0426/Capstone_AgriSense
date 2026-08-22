@@ -93,8 +93,8 @@ if (userCount === 0) {
   const hash = bcrypt.hashSync('password123', 10);
   db.prepare(
     'INSERT INTO users (name, email, password_hash, role, color) VALUES (?, ?, ?, ?, ?)'
-  ).run('Farmer', 'farmer@agrisense.app', hash, 'Administrator', '#3d9970');
-  console.log('Seeded demo user -> email: farmer@agrisense.app  password: password123');
+  ).run('Farmer', 'trinove.corp@gmail.com', hash, 'Administrator', '#3d9970');
+  console.log('Seeded demo user -> email: trinove.corp@gmail.com  password: password123');
 }
 
 // Seed a few demo log rows + notifications so the History and Notification screens

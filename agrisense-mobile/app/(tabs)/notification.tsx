@@ -1,19 +1,22 @@
 // app/(tabs)/notification.tsx
-// Notification tab: system alerts and events, newest first. Point this at your
-// notifications/alerts table so it updates as new sensor events come in.
+// Notification tab — newest first. Exactly 5 categories, all pushed live from
+// FarmDataContext: crop watered, tank low, limit exceeded, daily crop status, lifecycle change.
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '../../constants/theme';
-import { notifications } from '../../data/mockData';
+import { useFarmData } from '../../context/FarmDataContext';
 import Card from '../../components/ui/Card';
 import ListItem from '../../components/ui/ListItem';
 
 export default function NotificationScreen() {
+  const { notifications } = useFarmData();
+
   return (
-    <View style={styles.flex}>
+    <SafeAreaView style={styles.flex} edges={['top']}>
       <View style={styles.headerPad}>
         <Text style={styles.pageTitle}>Notifications</Text>
-        <Text style={styles.pageSub}>Recent alerts and system activity</Text>
+        <Text style={styles.pageSub}>Watering, tank level, limits, and crop status</Text>
       </View>
       <FlatList
         contentContainerStyle={styles.list}
@@ -29,7 +32,7 @@ export default function NotificationScreen() {
             <View style={styles.itemBody}>
               <ListItem
                 icon={item.icon as any}
-                iconBg={item.iconBg as any}
+                iconBg={item.iconBg}
                 title={item.title}
                 desc={item.desc}
                 noBorder
@@ -39,7 +42,7 @@ export default function NotificationScreen() {
           </Card>
         )}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

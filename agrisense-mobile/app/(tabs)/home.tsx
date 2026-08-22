@@ -1,214 +1,174 @@
 // app/(tabs)/home.tsx
-// Dashboard. Order per spec: "what's happening now" status → live sensor readings →
-// automation override (view more) → watering threshold slider → irrigation button → system logs button.
-// Swap `sensorReadings` for a live fetch from your Express API (e.g. poll every 30s).
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
-import Slider from '@react-native-community/slider';
+// Dashboard: out-of-calibration alert banner → live sensor readings (tap any card for its
+// data log + calibration) → lettuce lifecycle banner (tap for the full lifecycle page) →
+// last watering → weekly weather + predicted watering. Sensor reading + all the cross-screen
+// state lives in FarmDataContext so calibration, automation limits, notifications, and logs
+// stay in sync with what's shown here.
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../../constants/theme';
-import { getLatestSensorReading, getSwitches, SensorReading, SwitchesState } from '../../api/endpoints';
+import { useFarmData } from '../../context/FarmDataContext';
+import { stageLabels, sensorMeta, WeatherCondition } from '../../data/mockData';
 import Card from '../../components/ui/Card';
 import PanelHeader from '../../components/ui/PanelHeader';
 import MetricCard from '../../components/ui/MetricCard';
-import Button from '../../components/ui/Button';
+
+const WEATHER_ICON: Record<WeatherCondition, keyof typeof Ionicons.glyphMap> = {
+  sunny: 'sunny',
+  cloudy: 'cloudy',
+  rain: 'rainy',
+};
 
 export default function HomeScreen() {
-  const [threshold, setThreshold] = useState(55);
-  const [reading, setReading] = useState<SensorReading | null>(null);
-  const [switches, setSwitches] = useState<SwitchesState | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const {
+    reading,
+    lifecycle,
+    heatIndex,
+    waterLevel,
+    lastWatering,
+    weeklyWeather,
+    predictedWatering,
+    automationLimits,
+    outOfCalibration,
+  } = useFarmData();
 
-  const roofOpen = switches ? !switches.roof : false; // "roof" switch = auto-close enabled
-
-  const loadData = useCallback(async () => {
-    try {
-      const [sensorRes, switchRes] = await Promise.all([getLatestSensorReading(), getSwitches()]);
-      setReading(sensorRes);
-      setSwitches(switchRes);
-      // Note: the soil-moisture watering threshold below isn't in the API contract yet —
-      // it's still local-only. Add a `soilThreshold` field to /schedule (or a new endpoint)
-      // when you're ready to persist it, then load/save it here the same way as the switches.
-    } catch (err) {
-      console.warn('Failed to load dashboard data:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [loadData])
-  );
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadData();
-  };
-
-  if (loading) {
-    return (
-      <View style={[styles.flex, styles.centered]}>
-        <ActivityIndicator color={colors.mint} size="large" />
-      </View>
-    );
-  }
+  const waterLevelStatus = waterLevel < 20 ? 'danger' : waterLevel < 40 ? 'warn' : 'ok';
+  const waterLevelLabel = waterLevel < 20 ? 'Low' : waterLevel < 40 ? 'Getting Low' : 'Normal';
 
   return (
-    <ScrollView
-      style={styles.flex}
-      contentContainerStyle={styles.scroll}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.mint} />}
-    >      <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.pageTitle}>Dashboard</Text>
-          <Text style={styles.pageSub}>Live sensor readings — updates every 30 seconds</Text>
-        </View>
-        <View style={styles.onlineBadge}>
-          <View style={styles.onlineDot} />
-          <Text style={styles.onlineText}>Online</Text>
-        </View>
-      </View>
-
-      {/* What's happening right now */}
-      <Card style={styles.section}>
-        <PanelHeader title="What's happening right now" />
-        <View style={styles.panelBody}>
-          <View style={styles.statusBox}>
-            <Ionicons name={roofOpen ? 'sunny' : 'home'} size={44} color={roofOpen ? colors.dotBlueStrong : colors.textPrimary} />
-            <Text style={[styles.statusTitle, roofOpen && { color: colors.dotBlueStrong }]}>
-              Roof: {roofOpen ? 'Open' : 'Closed'}
-            </Text>
-            <Text style={styles.statusDesc}>
-              {roofOpen
-                ? 'Manually opened via dashboard override'
-                : `Closed automatically${reading ? ` · it's ${reading.airTemp}°C outside` : ''}`}
-            </Text>
+    <SafeAreaView style={styles.flex} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.pageTitle}>Dashboard</Text>
+            <Text style={styles.pageSub}>Live sensor readings — updates every 30 seconds</Text>
           </View>
-          <View style={styles.badgeCloud}>
-            <StatusChip dotColor={roofOpen ? colors.dotBlueStrong : colors.dotRed} label={`Roof ${roofOpen ? 'Open' : 'Closed'}`} />
-            <StatusChip dotColor={switches?.valve ? colors.dotEmerald : colors.dotStone} label={`Valve ${switches?.valve ? 'Open' : 'Closed'}`} />
-            <StatusChip dotColor={colors.dotBlue} label={reading?.rainStatus === 'ok' ? 'No Rain' : 'Raining'} />
-            <StatusChip dotColor={switches?.notifications ? colors.dotEmerald : colors.dotStone} label={`Alerts ${switches?.notifications ? 'On' : 'Off'}`} />
+          <View style={styles.onlineBadge}>
+            <View style={styles.onlineDot} />
+            <Text style={styles.onlineText}>Online</Text>
           </View>
         </View>
-      </Card>
 
-      {/* Live sensor readings */}
-      <Text style={styles.sectionLabel}>Live Sensor Readings</Text>
-      <View style={styles.metricsGrid}>
-        <MetricCard
-          label="Air Temperature"
-          value={reading?.airTemp ?? '—'}
-          unit="°C"
-          status={reading?.airTempStatus ?? 'ok'}
-          statusLabel={reading?.airTempLabel ?? 'Loading'}
-          footer="Optimal: 20°C - 24°C"
-          barColor={colors.barTempEnd}
-        />
-        <MetricCard
-          label="Air Humidity"
-          value={reading?.airHumidity ?? '—'}
-          unit="%"
-          status={reading?.airHumidityStatus ?? 'ok'}
-          statusLabel={reading?.airHumidityLabel ?? 'Loading'}
-          footer="Optimal: 60% - 80%"
-          barColor={colors.barHumidEnd}
-        />
-        <MetricCard
-          label="Soil Moisture"
-          value={reading?.soilMoisture ?? '—'}
-          unit="%"
-          status={reading?.soilMoistureStatus ?? 'ok'}
-          statusLabel={reading?.soilMoistureLabel ?? 'Loading'}
-          footer={`Threshold set at: ${Math.round(threshold)}%`}
-          barColor={colors.barSoilEnd}
-        />
-        <MetricCard
-          label="Rain Status"
-          value={reading ? reading.rain.toFixed(1) : '—'}
-          unit="mm"
-          status={reading?.rainStatus ?? 'ok'}
-          statusLabel={reading?.rainLabel ?? 'Loading'}
-          footer="No rainfall detected"
-          barColor={colors.barRainEnd}
-        />
-      </View>
-
-      {/* Automation override - view more */}
-      <Card style={styles.section}>
-        <PanelHeader title="Automation Override Switches" subtitle="Auto roof, valve, timer & more" />
-        <View style={styles.panelBody}>
-          <Button label="View More" variant="outline" onPress={() => router.push('/automation')} />
-        </View>
-      </Card>
-
-      {/* When should watering start */}
-      <Card style={styles.section}>
-        <PanelHeader title="When should watering start?" subtitle="Valve opens automatically when soil gets too dry" />
-        <View style={styles.panelBody}>
-          <View style={styles.sliderLabels}>
-            <Text style={styles.sliderLabelText}>Drier soil → water sooner</Text>
-            <Text style={styles.sliderLabelText}>Wetter soil → water later</Text>
+        {/* Out-of-calibration alert banner */}
+        {outOfCalibration.length > 0 && (
+          <View style={styles.alertBanner}>
+            <Ionicons name="warning" size={18} color={colors.dangerText} />
+            <View style={{ flex: 1 }}>
+              {outOfCalibration.map((key) => (
+                <TouchableOpacity key={key} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key } })}>
+                  <Text style={styles.alertText}>
+                    {sensorMeta[key].label} is outside its calibrated range — tap to view
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-          <Slider
-            minimumValue={20}
-            maximumValue={90}
-            step={1}
-            value={threshold}
-            onValueChange={setThreshold}
-            minimumTrackTintColor={colors.mint}
-            maximumTrackTintColor={colors.border}
-            thumbTintColor={colors.mint}
-          />
-          <View style={styles.thresholdRow}>
-            <Text style={styles.thresholdLabel}>Start watering when soil drops below:</Text>
-            <Text style={styles.thresholdValue}>{Math.round(threshold)}%</Text>
-          </View>
-          <View style={styles.rightNowRow}>
-            <Text style={styles.thresholdLabel}>Right now</Text>
-            <Text style={styles.rightNowText}>
-              Soil is at <Text style={styles.bold}>48%</Text> — <Text style={styles.wateringNow}>watering now</Text>
-            </Text>
-          </View>
+        )}
+
+        {/* Live sensor readings — tap any card for its data log + calibration */}
+        <Text style={styles.sectionLabel}>Live Sensor Readings</Text>
+        <View style={styles.metricsGrid}>
+          <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'heatIndex' } })}>
+            <MetricCard
+              label="Daily Heat Index"
+              value={heatIndex}
+              unit="°C"
+              status="ok"
+              statusLabel="Via Weather API"
+              footer="Updated hourly"
+              barColor={colors.barTempEnd}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'soilMoisture' } })}>
+            <MetricCard
+              label="Soil Moisture"
+              value={reading?.soilMoisture ?? '—'}
+              unit="%"
+              status={reading?.soilMoistureStatus ?? 'ok'}
+              statusLabel={reading?.soilMoistureLabel ?? 'Loading'}
+              footer={`Limit: ${automationLimits.soilMoistureLimit}%`}
+              barColor={colors.barSoilEnd}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'airTemp' } })}>
+            <MetricCard
+              label="Temperature"
+              value={reading?.airTemp ?? '—'}
+              unit="°C"
+              status={reading?.airTempStatus ?? 'ok'}
+              statusLabel={reading?.airTempLabel ?? 'Loading'}
+              footer={`Limit: ${automationLimits.tempLimit}°C`}
+              barColor={colors.barTempStart}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'waterLevel' } })}>
+            <MetricCard
+              label="Water Level"
+              value={waterLevel}
+              unit="%"
+              status={waterLevelStatus}
+              statusLabel={waterLevelLabel}
+              footer="Tank capacity"
+              barColor={colors.barHumidEnd}
+            />
+          </TouchableOpacity>
         </View>
-      </Card>
 
-      {/* Irrigation controller */}
-      <Card style={styles.section}>
-        <PanelHeader title="Irrigation" subtitle="Schedule & manage the watering controller" />
-        <View style={styles.panelBody}>
-          <Button label="Open Irrigation Controller" onPress={() => router.push('/irrigation')} />
-        </View>
-      </Card>
+        {/* Lettuce Lifecycle banner */}
+        <TouchableOpacity onPress={() => router.push('/lifecycle')}>
+          <Card style={styles.section}>
+            <View style={styles.lifecycleBanner}>
+              <Ionicons name="leaf" size={22} color={colors.mint} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.lifecycleLabel}>Lettuce Lifecycle</Text>
+                <Text style={styles.lifecycleValue}>
+                  {stageLabels[lifecycle.stage]} · {lifecycle.durationUnit === 'day' ? 'Day' : 'Week'} {lifecycle.durationValue}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </View>
+          </Card>
+        </TouchableOpacity>
 
-      {/* System logs button */}
-      <TouchableOpacity style={styles.logsButton} onPress={() => router.push('/system-logs')}>
-        <Ionicons name="document-text-outline" size={18} color={colors.textPrimary} />
-        <Text style={styles.logsButtonText}>View System Logs</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
+        {/* Last watering */}
+        <Card style={styles.section}>
+          <View style={styles.lastWateringRow}>
+            <Ionicons name="water-outline" size={20} color={colors.mint} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.lastWateringLabel}>Last Watering</Text>
+              <Text style={styles.lastWateringValue}>{lastWatering ?? 'No watering recorded yet'}</Text>
+            </View>
+          </View>
+        </Card>
 
-function StatusChip({ dotColor, label }: { dotColor: string; label: string }) {
-  return (
-    <View style={styles.chip}>
-      <View style={[styles.chipDot, { backgroundColor: dotColor }]} />
-      <Text style={styles.chipText}>{label}</Text>
-    </View>
+        {/* Weekly weather + predicted watering */}
+        <Card style={styles.section}>
+          <PanelHeader title="Weekly Weather Summary" subtitle="Predicted watering schedule for the week" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weatherRow}>
+            {weeklyWeather.map((w, i) => (
+              <View key={w.day} style={styles.weatherCol}>
+                <Text style={styles.weatherDay}>{w.day}</Text>
+                <Ionicons name={WEATHER_ICON[w.condition]} size={22} color={colors.mint} style={{ marginVertical: 6 }} />
+                <Text style={styles.weatherTemp}>{w.high}° / {w.low}°</Text>
+                <View style={[styles.wateringPill, predictedWatering[i].watering ? styles.wateringPillOn : styles.wateringPillOff]}>
+                  <Text style={[styles.wateringPillText, predictedWatering[i].watering ? styles.wateringPillTextOn : styles.wateringPillTextOff]}>
+                    {predictedWatering[i].watering ? 'Watering' : 'Skipped'}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </Card>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
-  centered: { alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: spacing.lg, paddingBottom: 40 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.lg },
   pageTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary },
@@ -220,37 +180,32 @@ const styles = StyleSheet.create({
   onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.dotEmerald },
   onlineText: { fontSize: 11, fontWeight: '600', color: colors.okText },
   section: { marginBottom: spacing.lg },
-  panelBody: { padding: spacing.lg },
   sectionLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: spacing.lg },
-  statusBox: {
-    backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.md, paddingVertical: spacing.xl, alignItems: 'center', marginBottom: spacing.lg,
+  metricWrap: { flexBasis: '48%', flexGrow: 1 },
+
+  alertBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm,
+    backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.lg,
   },
-  statusTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: spacing.sm, color: colors.okText },
-  statusDesc: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
-  badgeCloud: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.border,
-    backgroundColor: colors.card, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6,
-  },
-  chipDot: { width: 8, height: 8, borderRadius: 4 },
-  chipText: { fontSize: 12, fontWeight: '500', color: colors.textBody },
-  sliderLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  sliderLabelText: { fontSize: 11, color: colors.textMuted },
-  thresholdRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm },
-  thresholdLabel: { fontSize: 13, color: colors.textSecondary },
-  thresholdValue: { fontSize: 14, fontWeight: '700', color: colors.mint },
-  rightNowRow: {
-    flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.md, paddingTop: spacing.md,
-    borderTopWidth: 1, borderTopColor: colors.divider,
-  },
-  rightNowText: { fontSize: 13, color: colors.textBody },
-  bold: { fontWeight: '700' },
-  wateringNow: { color: colors.warnText, fontWeight: '600' },
-  logsButton: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.card,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.lg,
-  },
-  logsButtonText: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+  alertText: { fontSize: 12, color: colors.dangerText, fontWeight: '600', marginBottom: 2 },
+
+  lifecycleBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
+  lifecycleLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  lifecycleValue: { fontSize: 15, color: colors.textPrimary, fontWeight: '700', marginTop: 2 },
+
+  lastWateringRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
+  lastWateringLabel: { fontSize: 11, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: '600' },
+  lastWateringValue: { fontSize: 15, color: colors.textPrimary, fontWeight: '600', marginTop: 2 },
+
+  weatherRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.lg },
+  weatherCol: { alignItems: 'center', width: 64 },
+  weatherDay: { fontSize: 12, fontWeight: '700', color: colors.textPrimary },
+  weatherTemp: { fontSize: 11, color: colors.textSecondary, marginBottom: 6 },
+  wateringPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.sm },
+  wateringPillOn: { backgroundColor: colors.okBg },
+  wateringPillOff: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
+  wateringPillText: { fontSize: 9, fontWeight: '700' },
+  wateringPillTextOn: { color: colors.okText },
+  wateringPillTextOff: { color: colors.textMuted },
 });

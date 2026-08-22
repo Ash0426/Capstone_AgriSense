@@ -1,68 +1,147 @@
 // data/mockData.ts
-// Placeholder data shaped like what the Express/SQLite backend will eventually return.
-// Swap each of these for a real fetch() call once the backend endpoints are ready —
-// the screens that consume this data don't need to change shape-wise.
+// Placeholder / seed data for the pieces of the app that don't have a real backend endpoint
+// yet (see the TODO comments in context/FarmDataContext.tsx for what each one needs server-side).
+// Swap each of these for a real fetch() call once the backend endpoint exists — the screens
+// that consume this data don't need to change shape-wise.
 
-export const sensorReadings = {
-  airTemp: { value: 35.2, unit: '°C', status: 'danger', label: 'Too Hot', optimal: '20°C - 24°C' },
-  airHumidity: { value: 72, unit: '%', status: 'ok', label: 'Normal', optimal: '60% - 80%' },
-  soilMoisture: { value: 48, unit: '%', status: 'warn', label: 'Dry', optimal: 'Threshold set at: 55%' },
-  rain: { value: 0.0, unit: 'mm', status: 'ok', label: 'No Rain', optimal: 'No rainfall detected' },
+export type LettuceStage = 'seedling' | 'growth' | 'mature';
+export type DurationUnit = 'day' | 'week';
+
+export const stageOrder: LettuceStage[] = ['seedling', 'growth', 'mature'];
+export const stageLabels: Record<LettuceStage, string> = {
+  seedling: 'Seedling',
+  growth: 'Growth',
+  mature: 'Mature',
 };
 
-export type SwitchKey = 'roof' | 'valve' | 'timer' | 'notifications' | 'skipRain';
+export const defaultLifecycle = {
+  stage: 'seedling' as LettuceStage,
+  durationValue: 1,
+  durationUnit: 'day' as DurationUnit,
+  setAt: new Date().toISOString(),
+};
 
-export const automationSwitches: {
-  key: SwitchKey;
+// Exact wording from the product spec — data-log health rating options, worst to best.
+export const healthRatingOptions = [
+  'Dried out',
+  'Drooping',
+  'Slight paleness',
+  'Good color and firmness',
+  'Vibrant green / firm and upright',
+];
+
+export const mockHeatIndex = 31; // °C — TODO: proxy a weather API (e.g. OpenWeather) server-side
+export const mockWaterLevel = 72; // % — TODO: add a water_level column to sensor_readings + /sensors/latest
+
+export type SensorKey = 'heatIndex' | 'soilMoisture' | 'airTemp' | 'waterLevel';
+
+// changeThreshold: how much a reading has to move between polls to count as a "major shift"
+// worth writing to that sensor's data log.
+export const sensorMeta: Record<SensorKey, { label: string; unit: string; changeThreshold: number }> = {
+  heatIndex: { label: 'Daily Heat Index', unit: '°C', changeThreshold: 2 },
+  soilMoisture: { label: 'Soil Moisture', unit: '%', changeThreshold: 5 },
+  airTemp: { label: 'Temperature', unit: '°C', changeThreshold: 2 },
+  waterLevel: { label: 'Water Level', unit: '%', changeThreshold: 5 },
+};
+
+export type SensorLogEntry = { value: number; time: string; date: string };
+
+export const initialSensorLogs: Record<SensorKey, SensorLogEntry[]> = {
+  heatIndex: [{ value: 31, time: '9:00 AM', date: 'Aug 20' }],
+  soilMoisture: [{ value: 48, time: '8:30 AM', date: 'Aug 20' }],
+  airTemp: [{ value: 35.2, time: '8:30 AM', date: 'Aug 20' }],
+  waterLevel: [{ value: 72, time: '9:00 AM', date: 'Aug 20' }],
+};
+
+export type Calibration = { min: number; max: number };
+
+// TODO: PATCH these to a real /calibration endpoint once one exists — memory-only for now.
+export const initialCalibration: Record<SensorKey, Calibration> = {
+  heatIndex: { min: 15, max: 35 },
+  soilMoisture: { min: 30, max: 70 },
+  airTemp: { min: 18, max: 30 },
+  waterLevel: { min: 20, max: 100 },
+};
+
+export type WeatherCondition = 'sunny' | 'cloudy' | 'rain';
+
+export const weeklyWeatherMock: {
+  day: string;
+  date: string;
+  condition: WeatherCondition;
+  high: number;
+  low: number;
+  rainChance: number;
+}[] = [
+  { day: 'Mon', date: 'Aug 17', condition: 'sunny', high: 31, low: 23, rainChance: 5 },
+  { day: 'Tue', date: 'Aug 18', condition: 'cloudy', high: 29, low: 22, rainChance: 20 },
+  { day: 'Wed', date: 'Aug 19', condition: 'sunny', high: 32, low: 23, rainChance: 0 },
+  { day: 'Thu', date: 'Aug 20', condition: 'rain', high: 26, low: 21, rainChance: 80 },
+  { day: 'Fri', date: 'Aug 21', condition: 'rain', high: 25, low: 21, rainChance: 65 },
+  { day: 'Sat', date: 'Aug 22', condition: 'sunny', high: 30, low: 22, rainChance: 10 },
+  { day: 'Sun', date: 'Aug 23', condition: 'cloudy', high: 28, low: 22, rainChance: 30 },
+];
+
+export const defaultAutomationLimits = {
+  soilMoistureLimit: 40, // % — below this, watering runs regardless of forecast
+  tempLimit: 32, // °C — above this, watering runs regardless of forecast
+};
+
+export type NotificationCategory = 'watered' | 'tank-low' | 'limit-exceeded' | 'daily-status' | 'lifecycle-change';
+
+export type NotificationItem = {
+  id: string;
+  category: NotificationCategory;
   icon: string;
   iconBg: 'green' | 'blue' | 'amber';
   title: string;
   desc: string;
-  value: boolean;
-}[] = [
-  { key: 'roof', icon: 'home', iconBg: 'green', title: 'Auto Roof', desc: 'Closes when it gets too hot', value: true },
-  { key: 'valve', icon: 'water', iconBg: 'blue', title: 'Water Valve', desc: 'Opens to water the plants', value: false },
-  { key: 'timer', icon: 'timer-outline', iconBg: 'green', title: 'Watering Timer', desc: 'Waters on a schedule', value: true },
-  { key: 'notifications', icon: 'notifications', iconBg: 'amber', title: 'Notifications', desc: 'Sends alerts when something is wrong', value: true },
-  { key: 'skipRain', icon: 'rainy', iconBg: 'green', title: 'Skip watering when raining', desc: 'Saves water automatically', value: true },
-];
-
-export const currentSchedule = {
-  nextWatering: '06:03',
-  duration: '12 min',
+  time: string;
 };
 
-export const systemLogs = {
-  tempHumidity: [
-    { time: 'Jun 22 · 08:30', temp: '35.2°C', humidity: '72%', status: 'Too Hot', statusType: 'danger' },
-    { time: 'Jun 22 · 08:00', temp: '33.8°C', humidity: '74%', status: 'Too Hot', statusType: 'danger' },
-    { time: 'Jun 22 · 07:30', temp: '29.4°C', humidity: '76%', status: 'Normal', statusType: 'ok' },
-    { time: 'Jun 22 · 07:00', temp: '27.1°C', humidity: '80%', status: 'Normal', statusType: 'ok' },
-  ],
-  soil: [
-    { time: 'Jun 22 · 08:30', moisture: '48%', status: 'Dry', statusType: 'warn' },
-    { time: 'Jun 22 · 08:00', moisture: '51%', status: 'Good', statusType: 'ok' },
-  ],
-  valve: [
-    { time: 'Jun 22 · 08:32', action: 'Opened', duration: '—', reason: 'Soil too dry (below 55%)', statusType: 'ok' },
-  ],
-  roof: [
-    { time: 'Jun 22 · 08:31', action: 'Closed', tempGauge: '35.2°C', statusType: 'danger' },
-  ],
+export const initialNotifications: NotificationItem[] = [
+  {
+    id: 'n1',
+    category: 'lifecycle-change',
+    icon: 'leaf',
+    iconBg: 'green',
+    title: 'Lifecycle stage updated',
+    desc: 'Stage set to Seedling (Day 1)',
+    time: 'Yesterday · 07:00 AM',
+  },
+  {
+    id: 'n2',
+    category: 'daily-status',
+    icon: 'sunny',
+    iconBg: 'amber',
+    title: 'Daily crop status',
+    desc: 'Health logged: Good color and firmness',
+    time: 'Yesterday · 09:00 AM',
+  },
+  {
+    id: 'n3',
+    category: 'watered',
+    icon: 'water',
+    iconBg: 'blue',
+    title: 'Crop watered',
+    desc: 'Soil moisture was 38% — watering completed',
+    time: 'Yesterday · 06:15 PM',
+  },
+];
+
+export const initialLifecycleLogs: { time: string; action: string; statusType: 'ok' | 'warn' | 'danger' }[] = [
+  { time: 'Yesterday · 07:00 AM', action: 'Stage set to Seedling (Day 1)', statusType: 'ok' },
+];
+
+export type AdminUser = {
+  id: string;
+  username: string;
+  email: string;
+  role: 'Administrator' | 'User';
+  createdAt: string;
 };
 
-export const notifications = [
-  { id: '1', icon: 'thermometer', iconBg: 'amber', title: 'High temperature alert', desc: 'Air temperature reached 35.2°C', time: '8:30 AM' },
-  { id: '2', icon: 'water', iconBg: 'blue', title: 'Watering started', desc: 'Soil moisture dropped below 55% threshold', time: '8:32 AM' },
-  { id: '3', icon: 'home', iconBg: 'green', title: 'Roof closed automatically', desc: 'Triggered by high temperature', time: '8:31 AM' },
-  { id: '4', icon: 'checkmark-circle', iconBg: 'green', title: 'System check complete', desc: 'All sensors reporting normally', time: '7:00 AM' },
+export const initialAdminUsers: AdminUser[] = [
+  { id: 'u1', username: 'Sarah Admin', email: 'sarah@agrisense.app', role: 'Administrator', createdAt: '2026-06-01T09:00:00.000Z' },
+  { id: 'u2', username: 'Mark User', email: 'mark@agrisense.app', role: 'User', createdAt: '2026-07-12T14:10:00.000Z' },
 ];
-
-export const userActivityLog = [
-  { id: '1', action: 'Changed watering threshold to 55%', time: 'Today · 08:12 AM' },
-  { id: '2', action: 'Turned on Water Valve manually', time: 'Yesterday · 06:45 PM' },
-  { id: '3', action: 'Updated profile email', time: 'Jul 12 · 02:10 PM' },
-  { id: '4', action: 'Logged in from new device', time: 'Jul 10 · 09:00 AM' },
-];
-
-export const profileColors = ['#3d9970', '#2563eb', '#dc2626', '#a855f7', '#f59e0b'];

@@ -3,7 +3,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
-const { sendOtpEmail } = require('../utils/mailer');
+const { sendOtpEmail, sendLoginOtpEmail } = require('../utils/mailer');
 
 const router = express.Router();
 
@@ -69,6 +69,47 @@ router.post('/forgot-password/reset', (req, res) => {
   db.prepare('UPDATE otps SET used = 1 WHERE id = ?').run(record.id);
 
   res.json({ message: 'Password updated' });
+});
+
+// POST /api/auth/login/request-otp
+// Step-up verification sent after a correct email+password when the last login was 24h+
+// ago. Reuses the same `otps` table as forgot-password, just with different email copy.
+router.post('/login/request-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
+  if (!user) return res.json({ message: 'OTP sent' });
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  db.prepare('INSERT INTO otps (email, code, expires_at) VALUES (?, ?, ?)').run(user.email, code, expiresAt);
+
+  try {
+    await sendLoginOtpEmail(user.email, code);
+  } catch (err) {
+    console.error('Failed to send login OTP email:', err.message);
+    return res.status(500).json({ error: 'Could not send OTP email. Check server SMTP settings.' });
+  }
+
+  res.json({ message: 'OTP sent' });
+});
+
+// POST /api/auth/login/verify-otp
+router.post('/login/verify-otp', (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ error: 'Email and otp are required' });
+
+  const record = db
+    .prepare('SELECT * FROM otps WHERE email = ? AND code = ? AND used = 0 ORDER BY id DESC LIMIT 1')
+    .get(email.toLowerCase().trim(), otp);
+
+  if (!record || new Date(record.expires_at) < new Date()) {
+    return res.status(400).json({ error: 'Invalid or expired OTP' });
+  }
+
+  db.prepare('UPDATE otps SET used = 1 WHERE id = ?').run(record.id);
+  res.json({ message: 'Verified' });
 });
 
 module.exports = router;

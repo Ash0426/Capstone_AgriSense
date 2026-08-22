@@ -15,6 +15,14 @@ export const requestPasswordOtp = (email: string) =>
 export const resetPassword = (email: string, otp: string, newPassword: string) =>
   api.post<{ message: string }>('/auth/forgot-password/reset', { email, otp, newPassword });
 
+// Login step-up OTP (required when the last successful login was 24h+ ago). Mirrors the
+// forgot-password OTP flow: 6-digit code, emailed via Nodemailer, 10 min expiry.
+export const sendLoginStepUpOtp = (email: string) =>
+  api.post<{ message: string }>('/auth/login/request-otp', { email });
+
+export const verifyLoginStepUpOtp = (email: string, otp: string) =>
+  api.post<{ message: string }>('/auth/login/verify-otp', { email, otp });
+
 // ---- Sensors ----
 export type SensorReading = {
   airTemp: number; airTempStatus: 'ok' | 'warn' | 'danger'; airTempLabel: string;

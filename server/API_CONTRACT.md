@@ -24,6 +24,18 @@ Request: `{ "email": string, "otp": string, "newPassword": string }`
 Response 200: `{ "message": "Password updated" }`
 Response 400: `{ "error": "Invalid or expired OTP" }`
 
+### POST /auth/login/request-otp
+Step-up verification sent after a correct email+password when the last login was 24h+ ago.
+Sends a 6-digit OTP to the email via Nodemailer (valid 10 minutes). Same `otps` table as
+forgot-password, different email copy.
+Request: `{ "email": string }`
+Response 200: `{ "message": "OTP sent" }`
+
+### POST /auth/login/verify-otp
+Request: `{ "email": string, "otp": string }`
+Response 200: `{ "message": "Verified" }`
+Response 400: `{ "error": "Invalid or expired OTP" }`
+
 ---
 
 ## Sensors

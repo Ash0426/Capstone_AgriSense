@@ -1,10 +1,13 @@
 // app/system-logs.tsx
-// Historical logs: temp/humidity, soil moisture, watering events, roof events.
-// Replace `systemLogs` in data/mockData.ts with rows from your SQLite tables.
-import React, { useState } from 'react';
+// Historical logs: temp/humidity, soil moisture, and watering come from the real
+// GET /api/logs/:type endpoint. Lifecycle events (stage changes + health ratings) come from
+// FarmDataContext, since there's no backend table for those yet.
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../constants/theme';
-import { systemLogs } from '../data/mockData';
+import { getLogs } from '../api/endpoints';
+import { useFarmData } from '../context/FarmDataContext';
 import Card from '../components/ui/Card';
 import ScreenHeader from '../components/ui/ScreenHeader';
 import Badge, { BadgeStatus } from '../components/ui/Badge';
@@ -14,16 +17,36 @@ const TABS = [
   { key: 'tempHumidity', label: 'Temp & Humidity' },
   { key: 'soil', label: 'Soil Moisture' },
   { key: 'valve', label: 'Watering' },
-  { key: 'roof', label: 'Roof' },
+  { key: 'lifecycle', label: 'Lifecycle' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
+type Row = Record<string, string>;
 
 export default function SystemLogsScreen() {
   const [tab, setTab] = useState<TabKey>('tempHumidity');
+  const [tempHumidity, setTempHumidity] = useState<Row[]>([]);
+  const [soil, setSoil] = useState<Row[]>([]);
+  const [valve, setValve] = useState<Row[]>([]);
+  const { lifecycleLogs } = useFarmData();
+
+  const load = useCallback(async () => {
+    try {
+      const [th, s, v] = await Promise.all([getLogs('temp-humidity'), getLogs('soil'), getLogs('valve')]);
+      setTempHumidity(th);
+      setSoil(s);
+      setValve(v);
+    } catch (err) {
+      console.warn('Failed to load system logs:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
-    <View style={styles.flex}>
+    <SafeAreaView style={styles.flex} edges={['top']}>
       <View style={styles.headerPad}>
         <ScreenHeader title="System Logs" subtitle="Past sensor readings and activity records" showBack />
       </View>
@@ -43,29 +66,45 @@ export default function SystemLogsScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <Card>
           {tab === 'tempHumidity' &&
-            systemLogs.tempHumidity.map((row, i) => (
-              <LogRow key={i} time={row.time} statusType={row.statusType as BadgeStatus} statusLabel={row.status}>
-                <Text style={styles.cellMain}>{row.temp}</Text>
-                <Text style={styles.cellSub}>{row.humidity} humidity</Text>
-              </LogRow>
+            (tempHumidity.length ? (
+              tempHumidity.map((row, i) => (
+                <LogRow key={i} time={row.time} statusType={row.statusType as BadgeStatus} statusLabel={row.status}>
+                  <Text style={styles.cellMain}>{row.temp}</Text>
+                  <Text style={styles.cellSub}>{row.humidity} humidity</Text>
+                </LogRow>
+              ))
+            ) : (
+              <EmptyRow />
             ))}
           {tab === 'soil' &&
-            systemLogs.soil.map((row, i) => (
-              <LogRow key={i} time={row.time} statusType={row.statusType as BadgeStatus} statusLabel={row.status}>
-                <Text style={styles.cellMain}>{row.moisture}</Text>
-              </LogRow>
+            (soil.length ? (
+              soil.map((row, i) => (
+                <LogRow key={i} time={row.time} statusType={row.statusType as BadgeStatus} statusLabel={row.status}>
+                  <Text style={styles.cellMain}>{row.moisture}</Text>
+                </LogRow>
+              ))
+            ) : (
+              <EmptyRow />
             ))}
           {tab === 'valve' &&
-            systemLogs.valve.map((row, i) => (
-              <LogRow key={i} time={row.time} statusType={row.statusType as BadgeStatus} statusLabel={row.action}>
-                <Text style={styles.cellSub}>{row.reason}</Text>
-              </LogRow>
+            (valve.length ? (
+              valve.map((row, i) => (
+                <LogRow key={i} time={row.time} statusType={row.statusType as BadgeStatus} statusLabel={row.action}>
+                  <Text style={styles.cellSub}>{row.reason}</Text>
+                </LogRow>
+              ))
+            ) : (
+              <EmptyRow />
             ))}
-          {tab === 'roof' &&
-            systemLogs.roof.map((row, i) => (
-              <LogRow key={i} time={row.time} statusType={row.statusType as BadgeStatus} statusLabel={row.action}>
-                <Text style={styles.cellMain}>{row.tempGauge}</Text>
-              </LogRow>
+          {tab === 'lifecycle' &&
+            (lifecycleLogs.length ? (
+              lifecycleLogs.map((row, i) => (
+                <LogRow key={i} time={row.time} statusType={row.statusType} statusLabel={row.statusType === 'ok' ? 'Normal' : row.statusType === 'warn' ? 'Watch' : 'Alert'}>
+                  <Text style={styles.cellMain}>{row.action}</Text>
+                </LogRow>
+              ))
+            ) : (
+              <EmptyRow />
             ))}
 
           <View style={styles.downloadWrap}>
@@ -73,6 +112,14 @@ export default function SystemLogsScreen() {
           </View>
         </Card>
       </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function EmptyRow() {
+  return (
+    <View style={styles.emptyRow}>
+      <Text style={styles.emptyText}>No records yet.</Text>
     </View>
   );
 }
@@ -117,4 +164,6 @@ const styles = StyleSheet.create({
   cellMain: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
   cellSub: { fontSize: 12, color: colors.textBody, marginTop: 2 },
   downloadWrap: { padding: spacing.lg },
+  emptyRow: { padding: spacing.xl, alignItems: 'center' },
+  emptyText: { fontSize: 13, color: colors.textMuted },
 });
