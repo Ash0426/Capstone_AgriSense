@@ -6,8 +6,8 @@ export const colors = {
   // Brand / sidebar
   sidebarBg: '#1a3d2e',
   brandIcon: '#6ee7b7',
-  mint: '#3d9970',
-  mintHover: '#2d7a57',
+  mint: '#78b63b',
+  mintHover: '#5c9c2d',
 
   // Surfaces
   background: '#f5f5f4',
