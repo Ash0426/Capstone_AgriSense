@@ -28,6 +28,22 @@ export default function UserLogScreen() {
   const [disableConfirmId, setDisableConfirmId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const requestDisable = (u: AdminUserRecord, isSelf: boolean) => {
+    if (isSelf) {
+      Alert.alert("Can't disable your own account", 'Ask another admin to do this if needed.');
+      return;
+    }
+    setDisableConfirmId(u.id);
+  };
+
+  const requestDelete = (u: AdminUserRecord, isSelf: boolean) => {
+    if (isSelf) {
+      Alert.alert("Can't delete your own account", 'Ask another admin to do this if needed.');
+      return;
+    }
+    setDeleteConfirmId(u.id);
+  };
+
   const openEdit = (u: AdminUserRecord) => {
     setEditName(u.name);
     setEditEmail(u.email);
@@ -139,18 +155,14 @@ export default function UserLogScreen() {
                     <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
                     <Text style={styles.actionText}>Edit</Text>
                   </TouchableOpacity>
-                  {!isSelf && (
-                    <>
-                      <TouchableOpacity style={styles.actionBtn} onPress={() => setDisableConfirmId(item.id)}>
-                        <Ionicons name={item.disabled ? 'eye-outline' : 'eye-off-outline'} size={16} color={colors.warnText} />
-                        <Text style={[styles.actionText, { color: colors.warnText }]}>{item.disabled ? 'Enable' : 'Disable'}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.actionBtn} onPress={() => setDeleteConfirmId(item.id)}>
-                        <Ionicons name="trash-outline" size={16} color={colors.danger} />
-                        <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => requestDisable(item, isSelf)}>
+                    <Ionicons name={item.disabled ? 'eye-outline' : 'eye-off-outline'} size={16} color={isSelf ? colors.textMuted : colors.warnText} />
+                    <Text style={[styles.actionText, { color: isSelf ? colors.textMuted : colors.warnText }]}>{item.disabled ? 'Enable' : 'Disable'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => requestDelete(item, isSelf)}>
+                    <Ionicons name="trash-outline" size={16} color={isSelf ? colors.textMuted : colors.danger} />
+                    <Text style={[styles.actionText, { color: isSelf ? colors.textMuted : colors.danger }]}>Delete</Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </Card>

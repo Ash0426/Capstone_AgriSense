@@ -44,6 +44,7 @@ export default function LifecycleScreen() {
   };
 
   const openEditHealth = () => {
+    if (!latestHealthEntry) return;
     setSelectedRating(latestHealthEntry.rating);
     setHealthEditing(true);
   };
@@ -119,7 +120,7 @@ export default function LifecycleScreen() {
         <Card style={styles.section}>
           <PanelHeader title="Lettuce Health" />
           <View style={styles.panelBody}>
-            {!alreadyLoggedToday || healthEditing ? (
+            {!alreadyLoggedToday || healthEditing || !latestHealthEntry ? (
               <>
                 <Text style={styles.fieldLabel}>Rate your lettuce health</Text>
                 <View style={styles.ratingList}>

@@ -196,7 +196,7 @@ export default function ProfileScreen() {
                 />
               </View>
             ) : (
-              <View style={styles.body}>
+              <View style={styles.createFormBody}>
                 <TextInput
                   style={styles.stackedInput}
                   value={newUsername}
@@ -307,6 +307,7 @@ const styles = StyleSheet.create({
   userName: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
   userRole: { fontSize: 11, color: colors.mint, marginTop: 2, fontWeight: '600' },
   body: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+  createFormBody: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.lg },
   createPromptBody: { alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.lg },
   createPromptBtn: { width: '70%' },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6 },
