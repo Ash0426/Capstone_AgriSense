@@ -22,7 +22,7 @@ export default function NotificationScreen() {
       <FlatList
         contentContainerStyle={styles.list}
         data={notifications}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => String(item.id)}
         ListEmptyComponent={
           <Card>
             <Text style={styles.empty}>No notifications yet.</Text>

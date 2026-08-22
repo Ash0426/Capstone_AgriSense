@@ -29,6 +29,7 @@ export type SensorReading = {
   airHumidity: number; airHumidityStatus: 'ok' | 'warn' | 'danger'; airHumidityLabel: string;
   soilMoisture: number; soilMoistureStatus: 'ok' | 'warn' | 'danger'; soilMoistureLabel: string;
   rain: number; rainStatus: 'ok' | 'warn' | 'danger'; rainLabel: string;
+  waterLevel: number;
   updatedAt: string;
 };
 
@@ -42,8 +43,14 @@ export const setSwitch = (key: keyof SwitchesState, value: boolean) =>
   api.patch<{ key: string; value: boolean }>(`/switches/${key}`, { value });
 
 // ---- Logs ----
-export const getLogs = (type: 'temp-humidity' | 'soil' | 'valve' | 'roof') =>
-  api.get<Record<string, string>[]>(`/logs/${type}`);
+export type LogType =
+  | 'temp-humidity' | 'soil' | 'valve' | 'roof' | 'lifecycle'
+  | 'sensor-heatIndex' | 'sensor-soilMoisture' | 'sensor-airTemp' | 'sensor-waterLevel';
+
+export const getLogs = (type: LogType) => api.get<Record<string, string>[]>(`/logs/${type}`);
+
+export const createLifecycleLog = (action: string, statusType: 'ok' | 'warn' | 'danger') =>
+  api.post<{ time: string; action: string; statusType: string }>('/logs/lifecycle', { action, statusType });
 
 // ---- Users / Profile ----
 export const updateMe = (updates: Partial<{ name: string; email: string; password: string; role: string; color: string }>) =>
@@ -96,3 +103,45 @@ export type HeatStressPrediction =
     };
 
 export const getHeatStressPrediction = () => api.get<HeatStressPrediction>('/ml/heat-stress');
+
+// ---- Farm settings/state (lifecycle, automation limits, watering schedule, calibration,
+// notifications) — farm-wide, not per-user, persisted server-side so they survive an app
+// restart or a second device logging in. ----
+
+export const getLifecycle = () => api.get<{ ageDays: number; updatedAt: string }>('/lifecycle');
+export const updateLifecycle = (ageDays: number) => api.patch<{ ageDays: number; updatedAt: string }>('/lifecycle', { ageDays });
+
+export type AutomationLimits = { soilMoistureLimit: number; tempLimit: number; overrideAmountLiters: number };
+
+export const getAutomationLimits = () => api.get<AutomationLimits>('/automation-limits');
+export const updateAutomationLimits = (updates: Partial<AutomationLimits>) =>
+  api.patch<AutomationLimits>('/automation-limits', updates);
+
+export type DayWatering = { time: string; amountLiters: number };
+
+export const getWateringSchedule = () => api.get<Record<string, DayWatering>>('/watering-schedule');
+export const updateDayWatering = (day: string, value: DayWatering) =>
+  api.patch<{ day: string } & DayWatering>(`/watering-schedule/${day}`, value);
+
+export type SensorKey = 'heatIndex' | 'soilMoisture' | 'airTemp' | 'waterLevel';
+export type Calibration = { min: number; max: number };
+
+export const getCalibration = () => api.get<Record<SensorKey, Calibration>>('/calibration');
+export const updateCalibration = (key: SensorKey, value: Calibration) =>
+  api.patch<{ key: string } & Calibration>(`/calibration/${key}`, value);
+
+export type NotificationCategory = 'watered' | 'tank-low' | 'limit-exceeded' | 'daily-status' | 'lifecycle-change';
+
+export type NotificationItem = {
+  id: number;
+  category: NotificationCategory;
+  icon: string;
+  iconBg: 'green' | 'blue' | 'amber';
+  title: string;
+  desc: string;
+  time: string;
+};
+
+export const getNotifications = () => api.get<NotificationItem[]>('/notifications');
+export const createNotification = (n: { category: NotificationCategory; icon: string; iconBg: string; title: string; desc: string }) =>
+  api.post<NotificationItem>('/notifications', n);

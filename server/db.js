@@ -71,7 +71,66 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
+
+  -- Single-row settings tables (id=1 enforced by the CHECK) — lifecycle age and the water
+  -- automation limits each only ever have one current value, edited in place.
+  CREATE TABLE IF NOT EXISTS lifecycle (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    age_days INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS automation_limits (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    soil_moisture_limit REAL NOT NULL DEFAULT 40,
+    temp_limit REAL NOT NULL DEFAULT 32,
+    override_amount_liters REAL NOT NULL DEFAULT 2,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- One row per day of the week (Mon..Sun) — independent watering time + amount, editable
+  -- from the Weekly Weather page.
+  CREATE TABLE IF NOT EXISTS watering_schedule (
+    day TEXT PRIMARY KEY,
+    time TEXT NOT NULL,
+    amount_liters REAL NOT NULL
+  );
+
+  -- One row per sensor key — the safe min/max range that triggers the Dashboard alert banner.
+  CREATE TABLE IF NOT EXISTS sensor_calibration (
+    sensor_key TEXT PRIMARY KEY,
+    min REAL NOT NULL,
+    max REAL NOT NULL
+  );
+
+  -- Live notification feed (crop watered, tank low, limit exceeded, daily status, lifecycle
+  -- change) — farm-wide, not per-user, same as sensor_readings/switches/logs.
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    icon_bg TEXT NOT NULL,
+    title TEXT NOT NULL,
+    desc TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
+
+// Add the "water_level" column to an already-existing sensor_readings table — nullable since
+// hardware may not report it yet; /sensors/latest falls back to the last known value.
+const sensorColumns = db.prepare('PRAGMA table_info(sensor_readings)').all();
+if (!sensorColumns.some((c) => c.name === 'water_level')) {
+  db.exec('ALTER TABLE sensor_readings ADD COLUMN water_level REAL');
+}
+
+// An older "notifications" table (pre-dating the category-aware one above) may already exist
+// from before — CREATE TABLE IF NOT EXISTS is a no-op against it, so add the missing column
+// directly and clear its stale rows (icon/title copy that doesn't match today's 5 categories).
+const notificationColumns = db.prepare('PRAGMA table_info(notifications)').all();
+if (!notificationColumns.some((c) => c.name === 'category')) {
+  db.exec("ALTER TABLE notifications ADD COLUMN category TEXT NOT NULL DEFAULT 'daily-status'");
+  db.exec('DELETE FROM notifications');
+}
 
 // Add the "disabled" column to an already-existing users table (CREATE TABLE IF NOT EXISTS
 // above won't add columns to a table that already exists from before this change).
@@ -85,12 +144,38 @@ const switchDefaults = { roof: 1, valve: 0, timer: 1, notifications: 1, skipRain
 const insertSwitch = db.prepare('INSERT OR IGNORE INTO switches (key, value) VALUES (?, ?)');
 for (const [key, value] of Object.entries(switchDefaults)) insertSwitch.run(key, value);
 
+db.prepare('INSERT OR IGNORE INTO lifecycle (id, age_days) VALUES (1, 1)').run();
+db.prepare(
+  'INSERT OR IGNORE INTO automation_limits (id, soil_moisture_limit, temp_limit, override_amount_liters) VALUES (1, 40, 32, 2)'
+).run();
+
+const wateringDefaults = {
+  Mon: { time: '06:00', amountLiters: 2 },
+  Tue: { time: '06:00', amountLiters: 2 },
+  Wed: { time: '06:00', amountLiters: 2 },
+  Thu: { time: '06:00', amountLiters: 2 },
+  Fri: { time: '06:00', amountLiters: 2 },
+  Sat: { time: '06:30', amountLiters: 1.5 },
+  Sun: { time: '06:30', amountLiters: 1.5 },
+};
+const insertWatering = db.prepare('INSERT OR IGNORE INTO watering_schedule (day, time, amount_liters) VALUES (?, ?, ?)');
+for (const [day, { time, amountLiters }] of Object.entries(wateringDefaults)) insertWatering.run(day, time, amountLiters);
+
+const calibrationDefaults = {
+  heatIndex: { min: 15, max: 35 },
+  soilMoisture: { min: 30, max: 70 },
+  airTemp: { min: 18, max: 30 },
+  waterLevel: { min: 20, max: 100 },
+};
+const insertCalibration = db.prepare('INSERT OR IGNORE INTO sensor_calibration (sensor_key, min, max) VALUES (?, ?, ?)');
+for (const [key, { min, max }] of Object.entries(calibrationDefaults)) insertCalibration.run(key, min, max);
+
 // Seed one sensor reading + a demo user so the app has something to show on first run
 const readingCount = db.prepare('SELECT COUNT(*) AS c FROM sensor_readings').get().c;
 if (readingCount === 0) {
   db.prepare(
-    'INSERT INTO sensor_readings (air_temp, air_humidity, soil_moisture, rain) VALUES (?, ?, ?, ?)'
-  ).run(35.2, 72, 48, 0.0);
+    'INSERT INTO sensor_readings (air_temp, air_humidity, soil_moisture, rain, water_level) VALUES (?, ?, ?, ?, ?)'
+  ).run(35.2, 72, 48, 0.0, 72);
 }
 
 const userCount = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;

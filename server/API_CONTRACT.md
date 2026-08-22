@@ -48,13 +48,16 @@ Response 200:
   "airHumidity": 72, "airHumidityStatus": "ok",
   "soilMoisture": 48, "soilMoistureStatus": "warn",
   "rain": 0.0, "rainStatus": "ok",
+  "waterLevel": 72,
   "updatedAt": "2026-07-17T08:30:00.000Z"
 }
 ```
+`waterLevel` falls back to the last reading that reported one (or 72) if the latest row didn't include it — hardware doesn't have to report it every time.
 
 ### POST /sensors  (used by the ESP32 to push a new reading — protect with a device API key in production)
-Request: `{ "airTemp": number, "airHumidity": number, "soilMoisture": number, "rain": number }`
+Request: `{ "airTemp": number, "airHumidity": number, "soilMoisture": number, "rain": number, "waterLevel"?: number }`
 Response 201: `{ "message": "Reading stored" }`
+Also auto-logs a `sensor-soilMoisture` / `sensor-airTemp` / `sensor-waterLevel` entry (see Logs below) whenever that value moves enough from the previous reading to count as a "major shift" (soil/water ≥5%, temp ≥2°C).
 
 ---
 
@@ -72,8 +75,48 @@ Response 200: `{ "key": "roof", "value": true }`
 ## Logs
 
 ### GET /logs/:type  (protected)
-`:type` is one of `temp-humidity`, `soil`, `valve`, `roof`
+`:type` is one of `temp-humidity`, `soil`, `valve`, `roof`, `lifecycle`, `sensor-heatIndex`, `sensor-soilMoisture`, `sensor-airTemp`, `sensor-waterLevel`
 Response 200: `[{ "time": "...", ... type-specific fields } ]` — `valve`/`roof` rows also include `"by": "<user name>"`, the account that made the change (manual toggle or an automation running under a logged-in session).
+
+### POST /logs/lifecycle  (protected)
+The only client-writable log type — lifecycle age/health-rating changes aren't tied to a
+sensor POST or a switch toggle, so nothing else creates these server-side.
+Request: `{ "action": string, "statusType": "ok" | "warn" | "danger" }`
+Response 201: `{ "time": "...", "action": "...", "statusType": "..." }`
+
+---
+
+## Farm settings (lifecycle, automation limits, watering schedule, calibration, notifications)
+
+Farm-wide, not per-user — same model as switches/sensor_readings/logs. All protected.
+
+### GET /lifecycle · PATCH /lifecycle
+`PATCH` body: `{ "ageDays": number }` (>= 1). Both return `{ "ageDays": number, "updatedAt": "..." }`.
+
+### GET /automation-limits · PATCH /automation-limits
+`PATCH` body: any subset of `{ "soilMoistureLimit": number, "tempLimit": number, "overrideAmountLiters": number }`.
+Both return `{ "soilMoistureLimit": number, "tempLimit": number, "overrideAmountLiters": number }`.
+
+### GET /watering-schedule
+Response 200: `{ "Mon": { "time": "06:00", "amountLiters": 2 }, "Tue": { ... }, ... }` (one entry per day, Mon-Sun).
+
+### PATCH /watering-schedule/:day
+`:day` is one of `Mon`..`Sun`. Body: `{ "time": string, "amountLiters": number }`.
+Response 200: `{ "day": "Mon", "time": "...", "amountLiters": number }`.
+
+### GET /calibration
+Response 200: `{ "heatIndex": { "min": 15, "max": 35 }, "soilMoisture": { ... }, "airTemp": { ... }, "waterLevel": { ... } }`.
+
+### PATCH /calibration/:key
+`:key` is one of `heatIndex`, `soilMoisture`, `airTemp`, `waterLevel`. Body: `{ "min": number, "max": number }` (min < max).
+Response 200: `{ "key": "...", "min": number, "max": number }`.
+
+### GET /notifications
+Response 200: `[{ "id": 1, "category": "watered" | "tank-low" | "limit-exceeded" | "daily-status" | "lifecycle-change", "icon": "...", "iconBg": "...", "title": "...", "desc": "...", "time": "..." }]` (newest first).
+
+### POST /notifications
+Request: `{ "category": string, "icon": string, "iconBg": string, "title": string, "desc": string }`
+Response 201: same shape as a `GET /notifications` row.
 
 ---
 

@@ -11,6 +11,7 @@ const switchRoutes = require('./routes/switches');
 const logRoutes = require('./routes/logs');
 const userRoutes = require('./routes/users');
 const healthRoutes = require('./routes/health');
+const farmRoutes = require('./routes/farm');
 
 const app = express();
 app.use(cors());
@@ -24,6 +25,7 @@ app.use('/api/switches', switchRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api', healthRoutes);
+app.use('/api', farmRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 // eslint-disable-next-line no-unused-vars

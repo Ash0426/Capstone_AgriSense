@@ -1,8 +1,8 @@
 // data/mockData.ts
-// Placeholder / seed data for the pieces of the app that don't have a real backend endpoint
-// yet (see the TODO comments in context/FarmDataContext.tsx for what each one needs server-side).
-// Swap each of these for a real fetch() call once the backend endpoint exists — the screens
-// that consume this data don't need to change shape-wise.
+// App-wide vocabulary/config shared by multiple screens: lifecycle stages, health-rating
+// options, sensor metadata, and the weekly weather mock (heatIndex is still a mock value here
+// too, pending a weather API key — see FarmDataContext). Everything else that used to be
+// seed data here now lives in the real database — see server/routes/farm.js.
 
 export type LettuceStage = 'seedling' | 'growth' | 'mature';
 
@@ -22,11 +22,6 @@ export function stageForAge(ageDays: number): LettuceStage {
   return 'mature';
 }
 
-export const defaultLifecycle = {
-  ageDays: 1,
-  setAt: new Date().toISOString(),
-};
-
 // Exact wording from the product spec — data-log health rating options, worst to best.
 export const healthRatingOptions = [
   'Dried out',
@@ -37,7 +32,6 @@ export const healthRatingOptions = [
 ];
 
 export const mockHeatIndex = 31; // °C — TODO: proxy a weather API (e.g. OpenWeather) server-side
-export const mockWaterLevel = 72; // % — TODO: add a water_level column to sensor_readings + /sensors/latest
 
 export type SensorKey = 'heatIndex' | 'soilMoisture' | 'airTemp' | 'waterLevel';
 
@@ -52,22 +46,7 @@ export const sensorMeta: Record<SensorKey, { label: string; unit: string; change
 
 export type SensorLogEntry = { value: number; time: string; date: string };
 
-export const initialSensorLogs: Record<SensorKey, SensorLogEntry[]> = {
-  heatIndex: [{ value: 31, time: '9:00 AM', date: 'Aug 20' }],
-  soilMoisture: [{ value: 48, time: '8:30 AM', date: 'Aug 20' }],
-  airTemp: [{ value: 35.2, time: '8:30 AM', date: 'Aug 20' }],
-  waterLevel: [{ value: 72, time: '9:00 AM', date: 'Aug 20' }],
-};
-
 export type Calibration = { min: number; max: number };
-
-// TODO: PATCH these to a real /calibration endpoint once one exists — memory-only for now.
-export const initialCalibration: Record<SensorKey, Calibration> = {
-  heatIndex: { min: 15, max: 35 },
-  soilMoisture: { min: 30, max: 70 },
-  airTemp: { min: 18, max: 30 },
-  waterLevel: { min: 20, max: 100 },
-};
 
 export type WeatherCondition = 'sunny' | 'cloudy' | 'rain';
 
@@ -88,68 +67,6 @@ export const weeklyWeatherMock: {
   { day: 'Sun', date: 'Aug 23', condition: 'cloudy', high: 28, low: 22, rainChance: 30 },
 ];
 
-export const defaultAutomationLimits = {
-  soilMoistureLimit: 40, // % — below this, watering runs regardless of forecast
-  tempLimit: 32, // °C — above this, watering runs regardless of forecast
-  overrideAmountLiters: 2, // L — released when a limit-triggered (non-scheduled) watering fires
-};
-
 // Per-day watering plan — independent time + amount for each day of the week, editable from
 // the Weekly Weather page. Keyed by the same short day name used in weeklyWeatherMock.
 export type DayWatering = { time: string; amountLiters: number };
-
-export const initialWateringSchedule: Record<string, DayWatering> = {
-  Mon: { time: '06:00', amountLiters: 2 },
-  Tue: { time: '06:00', amountLiters: 2 },
-  Wed: { time: '06:00', amountLiters: 2 },
-  Thu: { time: '06:00', amountLiters: 2 },
-  Fri: { time: '06:00', amountLiters: 2 },
-  Sat: { time: '06:30', amountLiters: 1.5 },
-  Sun: { time: '06:30', amountLiters: 1.5 },
-};
-
-export type NotificationCategory = 'watered' | 'tank-low' | 'limit-exceeded' | 'daily-status' | 'lifecycle-change';
-
-export type NotificationItem = {
-  id: string;
-  category: NotificationCategory;
-  icon: string;
-  iconBg: 'green' | 'blue' | 'amber';
-  title: string;
-  desc: string;
-  time: string;
-};
-
-export const initialNotifications: NotificationItem[] = [
-  {
-    id: 'n1',
-    category: 'lifecycle-change',
-    icon: 'leaf',
-    iconBg: 'green',
-    title: 'Lifecycle stage updated',
-    desc: 'Stage set to Seedling (Day 1)',
-    time: 'Yesterday · 07:00 AM',
-  },
-  {
-    id: 'n2',
-    category: 'daily-status',
-    icon: 'sunny',
-    iconBg: 'amber',
-    title: 'Daily crop status',
-    desc: 'Health logged: Good color and firmness',
-    time: 'Yesterday · 09:00 AM',
-  },
-  {
-    id: 'n3',
-    category: 'watered',
-    icon: 'water',
-    iconBg: 'blue',
-    title: 'Crop watered',
-    desc: 'Soil moisture was 38% — watering completed',
-    time: 'Yesterday · 06:15 PM',
-  },
-];
-
-export const initialLifecycleLogs: { time: string; action: string; statusType: 'ok' | 'warn' | 'danger' }[] = [
-  { time: 'Yesterday · 07:00 AM', action: 'Age set to 1 day — Seedling stage', statusType: 'ok' },
-];
