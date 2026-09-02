@@ -5,16 +5,16 @@
 // state lives in FarmDataContext so calibration, automation limits, notifications, and logs
 // stay in sync with what's shown here.
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useFarmData } from '../../context/FarmDataContext';
 import { stageLabels, sensorMeta, WeatherCondition } from '../../data/mockData';
 import Card from '../../components/ui/Card';
 import PanelHeader from '../../components/ui/PanelHeader';
 import MetricCard from '../../components/ui/MetricCard';
-import TopHeader from '../../components/ui/TopHeader';
 
 const WEATHER_ICON: Record<WeatherCondition, keyof typeof Ionicons.glyphMap> = {
   sunny: 'sunny',
@@ -41,13 +41,18 @@ export default function HomeScreen() {
 
   const waterLevelStatus = waterLevel < 20 ? 'danger' : waterLevel < 40 ? 'warn' : 'ok';
   const waterLevelLabel = waterLevel < 20 ? 'Low' : waterLevel < 40 ? 'Getting Low' : 'Normal';
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.flex}>
-      <TopHeader />
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.pageTitle}>Dashboard</Text>
-        <Text style={styles.pageSub}>Live sensor readings — updates every 30 seconds</Text>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
+        <View style={styles.titleRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.pageTitle}>Dashboard</Text>
+            <Text style={styles.pageSub}>Live sensor readings — updates every 30 seconds</Text>
+          </View>
+          <Image source={require('../../assets/images/logo-straight.png')} style={styles.headerLogo} resizeMode="contain" />
+        </View>
 
         {/* Out-of-calibration alert banner */}
         {outOfCalibration.length > 0 && (
@@ -84,46 +89,46 @@ export default function HomeScreen() {
         <View style={styles.metricsGrid}>
           <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'heatIndex' } })}>
             <MetricCard
+              icon="sunny-outline"
               label="Daily Heat Index"
               value={heatIndex}
               unit="°C"
               status="ok"
               statusLabel="Via Weather API"
               footer="Updated hourly"
-              barColor={colors.barTempEnd}
             />
           </TouchableOpacity>
           <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'soilMoisture' } })}>
             <MetricCard
+              icon="leaf-outline"
               label="Soil Moisture"
               value={reading?.soilMoisture ?? '—'}
               unit="%"
               status={reading?.soilMoistureStatus ?? 'ok'}
               statusLabel={reading?.soilMoistureLabel ?? 'Loading'}
               footer={`Limit: ${automationLimits.soilMoistureLimit}%`}
-              barColor={colors.barSoilEnd}
             />
           </TouchableOpacity>
           <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'airTemp' } })}>
             <MetricCard
+              icon="thermometer-outline"
               label="Temperature"
               value={reading?.airTemp ?? '—'}
               unit="°C"
               status={reading?.airTempStatus ?? 'ok'}
               statusLabel={reading?.airTempLabel ?? 'Loading'}
               footer={`Limit: ${automationLimits.tempLimit}°C`}
-              barColor={colors.barTempStart}
             />
           </TouchableOpacity>
           <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'waterLevel' } })}>
             <MetricCard
+              icon="water-outline"
               label="Water Level"
               value={waterLevel}
               unit="%"
               status={waterLevelStatus}
               statusLabel={waterLevelLabel}
               footer="Tank capacity"
-              barColor={colors.barHumidEnd}
             />
           </TouchableOpacity>
         </View>
@@ -204,8 +209,10 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.lg, paddingBottom: 40 },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.lg },
+  headerLogo: { width: 70, height: 14, marginTop: 4 },
   pageTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary, marginBottom: 2 },
-  pageSub: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.lg },
+  pageSub: { fontSize: 12, color: colors.textMuted },
   section: { marginBottom: spacing.lg },
   sectionLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: spacing.lg },

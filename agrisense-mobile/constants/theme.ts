@@ -8,6 +8,7 @@ export const colors = {
   brandIcon: '#6ee7b7',
   mint: '#78b63b',
   mintHover: '#5c9c2d',
+  mintGradient: ['#78b63b', '#5c9c2d'] as const,
 
   // Surfaces
   background: '#f5f5f4',

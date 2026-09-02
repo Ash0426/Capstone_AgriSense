@@ -1,7 +1,10 @@
 // components/ui/Button.tsx
 // One button component for the whole app. Variants: primary / outline / danger.
+// Primary renders an actual dark-green gradient background (expo-linear-gradient); outline
+// and danger stay flat since they're a border/solid-color treatment, not a filled surface.
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radius } from '../../constants/theme';
 
 type Variant = 'primary' | 'outline' | 'danger';
@@ -21,15 +24,32 @@ export default function Button({
   loading?: boolean;
   style?: ViewStyle;
 }) {
+  const isDisabled = disabled || loading;
+
+  if (variant === 'primary') {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={isDisabled}
+        activeOpacity={0.8}
+        style={[styles.touchable, isDisabled && styles.disabled, style]}
+      >
+        <LinearGradient colors={colors.mintGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.base}>
+          {loading ? <ActivityIndicator color={colors.white} /> : <Text style={[styles.text, { color: colors.white }]}>{label}</Text>}
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  }
+
   const variantStyle = styles[variant];
   const textColor = variant === 'outline' ? colors.mint : colors.white;
 
   return (
     <TouchableOpacity
       onPress={onPress}
-      disabled={disabled || loading}
+      disabled={isDisabled}
       activeOpacity={0.8}
-      style={[styles.base, variantStyle, (disabled || loading) && styles.disabled, style]}
+      style={[styles.base, variantStyle, isDisabled && styles.disabled, style]}
     >
       {loading ? (
         <ActivityIndicator color={textColor} />
@@ -41,6 +61,7 @@ export default function Button({
 }
 
 const styles = StyleSheet.create({
+  touchable: { width: '100%', borderRadius: radius.md, overflow: 'hidden' },
   base: {
     paddingVertical: 12,
     borderRadius: radius.md,
@@ -48,7 +69,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: '100%',
   },
-  primary: { backgroundColor: colors.mint },
   danger: { backgroundColor: colors.danger },
   outline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.mint },
   disabled: { opacity: 0.5 },
