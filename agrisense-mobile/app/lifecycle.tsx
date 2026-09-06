@@ -15,6 +15,8 @@ import PanelHeader from '../components/ui/PanelHeader';
 import ScreenHeader from '../components/ui/ScreenHeader';
 import Button from '../components/ui/Button';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import LifecycleAnimation from '../components/ui/LifecycleAnimation';
+import HealthCalendar from '../components/ui/HealthCalendar';
 
 export default function LifecycleScreen() {
   const { lifecycle, stage, stageIndex, setLifecycle, healthLog, logHealth, editHealthLog } = useFarmData();
@@ -68,6 +70,10 @@ export default function LifecycleScreen() {
 
         <Card style={styles.section}>
           <View style={styles.panelBody}>
+            <View style={styles.animationWrap}>
+              <LifecycleAnimation stage={stage} />
+            </View>
+
             <View style={styles.stepperRow}>
               {stageOrder.map((s, i) => (
                 <React.Fragment key={s}>
@@ -172,6 +178,13 @@ export default function LifecycleScreen() {
         </Card>
 
         <Card style={styles.section}>
+          <PanelHeader title="Health Calendar" subtitle="Tap a day to see that day's status" />
+          <View style={styles.panelBody}>
+            <HealthCalendar entries={healthLog} />
+          </View>
+        </Card>
+
+        <Card style={styles.section}>
           <PanelHeader title="Health Log" subtitle="Lettuce health by date and time" />
           <View style={styles.body}>
             {healthLog.length ? (
@@ -217,6 +230,7 @@ const styles = StyleSheet.create({
   panelBody: { padding: spacing.lg },
   body: { paddingHorizontal: spacing.lg },
 
+  animationWrap: { alignItems: 'center', marginBottom: spacing.lg },
   stepperRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.lg },
   stepperItem: { alignItems: 'center', width: 72 },
   stepperDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.border },

@@ -1,10 +1,10 @@
 // components/ui/Card.tsx
 // The white rounded container used everywhere (metric cards, panels, list panels).
 import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import { View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { colors, radius } from '../../constants/theme';
 
-export default function Card({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
+export default function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   return <View style={[styles.card, style]}>{children}</View>;
 }
 

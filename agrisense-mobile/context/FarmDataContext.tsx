@@ -14,6 +14,7 @@ import {
   getLogs,
   createLifecycleLog,
   logHealthRating,
+  getHealthLog,
   getHeatStressPrediction,
   listUsers,
   createUser,
@@ -388,6 +389,10 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
     getNotifications()
       .then(setNotifications)
       .catch((err) => console.warn('Failed to load notifications:', err));
+
+    getHealthLog()
+      .then((rows) => setHealthLog(rows.map((r) => ({ id: String(r.id), rating: r.rating, loggedAt: r.created_at }))))
+      .catch((err) => console.warn('Failed to load health log:', err));
 
     getLogs('lifecycle')
       .then((rows) => setLifecycleLogs(rows as unknown as LifecycleLogEntry[]))

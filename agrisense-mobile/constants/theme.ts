@@ -21,6 +21,7 @@ export const colors = {
   textSecondary: '#78716c',
   textMuted: '#a8a29e',
   textBody: '#44403c',
+  textDarkGreen: '#1f4d1a',
   white: '#ffffff',
 
   // Status badges
@@ -39,15 +40,11 @@ export const colors = {
   iconBlue: '#1e40af',
   iconAmber: '#92400e',
 
-  // Metric bar accents
-  barTempStart: '#fb923c',
-  barTempEnd: '#ef4444',
-  barHumidStart: '#38bdf8',
-  barHumidEnd: '#3b82f6',
-  barSoilStart: '#92400e',
-  barSoilEnd: '#fbbf24',
-  barRainStart: '#a78bfa',
-  barRainEnd: '#60a5fa',
+  // Live Sensor Readings card tints — one shade of green per sensor, light to deep
+  metricTintHeat: '#eef7e6',
+  metricTintSoil: '#dcefc9',
+  metricTintTemp: '#c8e6ad',
+  metricTintWater: '#aed98d',
 
   // Dots
   dotRed: '#ef4444',

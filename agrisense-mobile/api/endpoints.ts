@@ -91,6 +91,8 @@ export type HealthLogRecord = {
 
 export const logHealthRating = (rating: string) => api.post<HealthLogRecord>('/health-log', { rating });
 
+export const getHealthLog = (limit = 365) => api.get<HealthLogRecord[]>(`/health-log?limit=${limit}`);
+
 export type HeatStressPrediction =
   | { status: 'insufficient-data'; collected: number; required: number }
   | {

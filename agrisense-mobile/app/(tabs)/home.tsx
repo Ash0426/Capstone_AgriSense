@@ -15,6 +15,7 @@ import { stageLabels, sensorMeta, WeatherCondition } from '../../data/mockData';
 import Card from '../../components/ui/Card';
 import PanelHeader from '../../components/ui/PanelHeader';
 import MetricCard from '../../components/ui/MetricCard';
+import LifecycleAnimation from '../../components/ui/LifecycleAnimation';
 
 const WEATHER_ICON: Record<WeatherCondition, keyof typeof Ionicons.glyphMap> = {
   sunny: 'sunny',
@@ -90,6 +91,7 @@ export default function HomeScreen() {
           <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'heatIndex' } })}>
             <MetricCard
               icon="sunny-outline"
+              tint={colors.metricTintHeat}
               label="Daily Heat Index"
               value={heatIndex}
               unit="°C"
@@ -101,6 +103,7 @@ export default function HomeScreen() {
           <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'soilMoisture' } })}>
             <MetricCard
               icon="leaf-outline"
+              tint={colors.metricTintSoil}
               label="Soil Moisture"
               value={reading?.soilMoisture ?? '—'}
               unit="%"
@@ -112,6 +115,7 @@ export default function HomeScreen() {
           <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'airTemp' } })}>
             <MetricCard
               icon="thermometer-outline"
+              tint={colors.metricTintTemp}
               label="Temperature"
               value={reading?.airTemp ?? '—'}
               unit="°C"
@@ -123,6 +127,7 @@ export default function HomeScreen() {
           <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'waterLevel' } })}>
             <MetricCard
               icon="water-outline"
+              tint={colors.metricTintWater}
               label="Water Level"
               value={waterLevel}
               unit="%"
@@ -137,7 +142,7 @@ export default function HomeScreen() {
         <TouchableOpacity onPress={() => router.push('/lifecycle')}>
           <Card style={styles.section}>
             <View style={styles.bannerRow}>
-              <Ionicons name="leaf" size={22} color={colors.mint} />
+              <LifecycleAnimation stage={stage} size={56} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.bannerLabel}>Lettuce Lifecycle</Text>
                 <Text style={styles.bannerValue}>
@@ -212,9 +217,9 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.lg },
   headerLogo: { width: 70, height: 14, marginTop: 4 },
   pageTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary, marginBottom: 2 },
-  pageSub: { fontSize: 12, color: colors.textMuted },
+  pageSub: { fontSize: 12, color: colors.textSecondary },
   section: { marginBottom: spacing.lg },
-  sectionLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionLabel: { fontSize: 12, fontWeight: '700', color: colors.textDarkGreen, marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: spacing.lg },
   metricWrap: { flexBasis: '48%', flexGrow: 1 },
 
@@ -227,12 +232,12 @@ const styles = StyleSheet.create({
   alertTextModerate: { color: colors.warnText },
 
   bannerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
-  bannerLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  bannerLabel: { fontSize: 12, color: colors.textDarkGreen, fontWeight: '700' },
   bannerValue: { fontSize: 15, color: colors.textPrimary, fontWeight: '700', marginTop: 2 },
-  weatherHint: { fontSize: 11, color: colors.textMuted, paddingHorizontal: spacing.lg, paddingBottom: spacing.md, marginTop: -spacing.sm },
+  weatherHint: { fontSize: 11, color: colors.textSecondary, paddingHorizontal: spacing.lg, paddingBottom: spacing.md, marginTop: -spacing.sm },
 
   lastWateringRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
-  lastWateringLabel: { fontSize: 11, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: '600' },
+  lastWateringLabel: { fontSize: 11, color: colors.textDarkGreen, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: '700' },
   lastWateringValue: { fontSize: 15, color: colors.textPrimary, fontWeight: '600', marginTop: 2 },
 
   weatherRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.lg },

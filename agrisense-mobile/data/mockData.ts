@@ -31,6 +31,16 @@ export const healthRatingOptions = [
   'Vibrant green / firm and upright',
 ];
 
+// One distinct color per rating (worst→best, red→deep green) — used by the Health Calendar to
+// color-code each logged day at a glance.
+export const healthRatingColors: Record<string, string> = {
+  'Dried out': '#dc2626',
+  'Drooping': '#f97316',
+  'Slight paleness': '#f59e0b',
+  'Good color and firmness': '#84cc16',
+  'Vibrant green / firm and upright': '#15803d',
+};
+
 export const mockHeatIndex = 31; // °C — TODO: proxy a weather API (e.g. OpenWeather) server-side
 
 export type SensorKey = 'heatIndex' | 'soilMoisture' | 'airTemp' | 'waterLevel';
