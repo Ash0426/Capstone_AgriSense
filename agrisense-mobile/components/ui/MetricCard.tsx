@@ -51,7 +51,7 @@ export default function MetricCard({
 }
 
 const styles = StyleSheet.create({
-  card: { flexBasis: '48%', flexGrow: 1, marginBottom: spacing.md, borderColor: 'transparent' },
+  card: { flexBasis: '48%', flexGrow: 1, borderColor: 'transparent' },
   body: { padding: spacing.lg },
   headerRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', rowGap: 4, marginBottom: 8 },
   labelRow: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, marginRight: 6, gap: 6 },

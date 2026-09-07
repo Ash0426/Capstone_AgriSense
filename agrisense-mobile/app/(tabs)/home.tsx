@@ -220,8 +220,8 @@ const styles = StyleSheet.create({
   pageSub: { fontSize: 12, color: colors.textSecondary },
   section: { marginBottom: spacing.lg },
   sectionLabel: { fontSize: 12, fontWeight: '700', color: colors.textDarkGreen, marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
-  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: spacing.lg },
-  metricWrap: { flexBasis: '48%', flexGrow: 1 },
+  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg },
+  metricWrap: { flexBasis: '47%', flexGrow: 1 },
 
   alertBanner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm,

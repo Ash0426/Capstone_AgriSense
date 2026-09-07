@@ -40,11 +40,12 @@ export const colors = {
   iconBlue: '#1e40af',
   iconAmber: '#92400e',
 
-  // Live Sensor Readings card tints — one shade of green per sensor, light to deep
-  metricTintHeat: '#eef7e6',
-  metricTintSoil: '#dcefc9',
-  metricTintTemp: '#c8e6ad',
-  metricTintWater: '#aed98d',
+  // Live Sensor Readings card tints — a distinct hue per sensor so the 4 cards read apart
+  // at a glance instead of blending into one green block.
+  metricTintHeat: '#fef1cd', // amber, matches the sun icon
+  metricTintSoil: '#dcefc9', // green, matches the leaf icon
+  metricTintTemp: '#fbdcd2', // coral, matches the thermometer icon
+  metricTintWater: '#dbeafe', // blue, matches the water-drop icon
 
   // Dots
   dotRed: '#ef4444',
