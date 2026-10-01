@@ -12,6 +12,8 @@ const logRoutes = require('./routes/logs');
 const userRoutes = require('./routes/users');
 const healthRoutes = require('./routes/health');
 const farmRoutes = require('./routes/farm');
+const deviceRoutes = require('./routes/device');
+const valve = require('./lib/valve');
 
 const app = express();
 app.use(cors());
@@ -26,6 +28,10 @@ app.use('/api/logs', logRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api', healthRoutes);
 app.use('/api', farmRoutes);
+app.use('/api', deviceRoutes);
+
+valve.startTimer(); // closes the valve when a timed run ends, even with no phone open
+require('./lib/automation').startScheduler(); // runs the weekly watering schedule set in the app
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 // eslint-disable-next-line no-unused-vars

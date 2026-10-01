@@ -1,0 +1,14 @@
+# Secrets — keep real values out of GitHub (use server/.env.example as the template)
+.env
+server/.env
+
+# Local database (created automatically on first server start)
+server/agrisense.db
+server/agrisense.db-shm
+server/agrisense.db-wal
+
+# Dependencies (npm install recreates these)
+node_modules/
+
+# Arduino build output
+firmware/**/build/

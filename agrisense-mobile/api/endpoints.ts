@@ -42,6 +42,45 @@ export const getSwitches = () => api.get<SwitchesState>('/switches');
 export const setSwitch = (key: keyof SwitchesState, value: boolean) =>
   api.patch<{ key: string; value: boolean }>(`/switches/${key}`, { value });
 
+// ---- Hardware link (ESP32) ----
+export type DeviceStatus = {
+  online: boolean;
+  lastSeen: string | null;
+  valveOpen: boolean;
+  valveSecondsLeft: number;
+  valveReason: string | null;
+  // Latest raw analog readings (0-4095) — shown on Hardware Settings while calibrating.
+  raw: { soil: number | null; water: number | null; rain: number | null };
+};
+
+export const getDeviceStatus = () => api.get<DeviceStatus>('/device/status');
+// Timed watering run on the server; omit liters to use the saved override amount.
+export const runValve = (liters?: number) => api.post<{ liters: number; seconds: number }>('/valve/run', liters ? { liters } : {});
+export const stopValve = () => api.post<{ valveOpen: boolean }>('/valve/stop');
+
+// Everything the hardware follows that isn't a limit or the schedule: sensor calibration,
+// tank minimum, rain threshold, roof rules + servo angles, reading interval.
+export type HardwareSettings = {
+  soilDryRaw: number;
+  soilWetRaw: number;
+  waterEmptyRaw: number;
+  waterFullRaw: number;
+  rainDryRaw: number;
+  rainWetRaw: number;
+  tankMinLevel: number;
+  rainThreshold: number;
+  roofMode: 'manual' | 'auto';
+  roofCloseTemp: number;
+  roofCloseOnRain: boolean;
+  servoOpenAngle: number;
+  servoClosedAngle: number;
+  sensorIntervalSec: number;
+};
+
+export const getHardwareSettings = () => api.get<HardwareSettings>('/hardware-settings');
+export const updateHardwareSettings = (updates: Partial<HardwareSettings>) =>
+  api.patch<HardwareSettings>('/hardware-settings', updates);
+
 // ---- Logs ----
 export type LogType =
   | 'temp-humidity' | 'soil' | 'valve' | 'roof' | 'lifecycle'

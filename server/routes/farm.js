@@ -6,6 +6,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { parseTime } = require('../lib/automation');
 
 const router = express.Router();
 
@@ -66,9 +67,13 @@ router.patch('/watering-schedule/:day', requireAuth, (req, res) => {
   if (!VALID_DAYS.includes(day)) return res.status(400).json({ error: `Unknown day: ${day}` });
 
   const { time, amountLiters } = req.body;
-  if (typeof time !== 'string' || typeof amountLiters !== 'number') {
-    return res.status(400).json({ error: 'time (string) and amountLiters (number) are required' });
+  if (typeof time !== 'string' || typeof amountLiters !== 'number' || amountLiters < 0) {
+    return res.status(400).json({ error: 'time (string) and amountLiters (number >= 0) are required' });
   }
+  if (parseTime(time) == null) {
+    return res.status(400).json({ error: 'Time must look like 06:00, 18:30 or 6:30 PM' });
+  }
+  // INSERT OR REPLACE also clears last_run_date, so a new time later today will still run.
 
   db.prepare('INSERT OR REPLACE INTO watering_schedule (day, time, amount_liters) VALUES (?, ?, ?)').run(day, time, amountLiters);
   res.json({ day, time, amountLiters });

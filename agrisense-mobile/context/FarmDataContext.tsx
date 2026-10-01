@@ -5,12 +5,19 @@
 // AND a log entry at the same time). Everything here is now backed by the real server
 // (farm.js, logs.js, sensors.js) so it survives an app restart — the only remaining mock is
 // heatIndex, pending a weather API key.
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import {
   getLatestSensorReading,
   getSwitches,
   setSwitch,
+  getDeviceStatus,
+  runValve,
+  stopValve,
+  DeviceStatus,
+  getHardwareSettings,
+  updateHardwareSettings,
+  HardwareSettings,
   getLogs,
   createLifecycleLog,
   logHealthRating,
@@ -51,8 +58,7 @@ import {
   DayWatering,
 } from '../data/mockData';
 
-const LOW_WATER_THRESHOLD = 20;
-const POLL_INTERVAL_MS = 30000;
+const POLL_INTERVAL_MS = 10000;
 const HEAT_STRESS_POLL_INTERVAL_MS = 120000;
 
 const SENSOR_LOG_TYPES: Record<SensorKey, 'sensor-heatIndex' | 'sensor-soilMoisture' | 'sensor-airTemp' | 'sensor-waterLevel'> = {
@@ -101,6 +107,19 @@ type FarmDataContextValue = {
   switches: SwitchesState | null;
   setRoof: (value: boolean) => Promise<void>;
 
+  // ESP32 link: online/offline + current valve run. waterNow/stopWatering throw on failure
+  // (e.g. 409 if a run is already going) so the screen can show the message.
+  deviceStatus: DeviceStatus | null;
+  waterNow: (liters?: number) => Promise<void>;
+  stopWatering: () => Promise<void>;
+
+  // Farmer-set rules the hardware follows (calibration, tank minimum, rain, roof, servo angles).
+  // saveHardwareSettings throws with the server's message if a value is invalid.
+  hardwareSettings: HardwareSettings | null;
+  saveHardwareSettings: (updates: Partial<HardwareSettings>) => Promise<void>;
+  // Schedule on/off ('timer') and skip-when-raining ('skipRain') switches.
+  setSwitchValue: (key: 'timer' | 'skipRain', value: boolean) => Promise<void>;
+
   notifications: NotificationItem[];
   lifecycleLogs: LifecycleLogEntry[];
 
@@ -146,10 +165,9 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
   const [calibration, setCalibrationState] = useState<Record<SensorKey, Calibration>>(EMPTY_CALIBRATION);
   const [sensorLogs, setSensorLogs] = useState<Record<SensorKey, SensorLogEntry[]>>(EMPTY_SENSOR_LOGS);
   const [heatStress, setHeatStress] = useState<HeatStressPrediction | null>(null);
+  const [deviceStatus, setDeviceStatus] = useState<DeviceStatus | null>(null);
+  const [hardwareSettings, setHardwareSettings] = useState<HardwareSettings | null>(null);
 
-  const wateringActiveRef = useRef(false);
-  const breachActiveRef = useRef(false);
-  const tankLowNotifiedRef = useRef(false);
 
   const actorSuffix = user?.name ? ` (by ${user.name})` : '';
 
@@ -235,39 +253,57 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
     updateCalibration(key, value).catch((err) => console.warn('Failed to persist calibration:', err));
   }, []);
 
+  // Moving the roof by hand switches roof control to Manual on the server.
   const setRoof = useCallback(async (value: boolean) => {
     await setSwitch('roof', value);
     setSwitches((prev) => (prev ? { ...prev, roof: value } : prev));
+    setHardwareSettings((prev) => (prev ? { ...prev, roofMode: 'manual' } : prev));
   }, []);
 
+  const setSwitchValue = useCallback(async (key: 'timer' | 'skipRain', value: boolean) => {
+    setSwitches((prev) => (prev ? { ...prev, [key]: value } : prev));
+    try {
+      await setSwitch(key, value);
+    } catch (err) {
+      setSwitches((prev) => (prev ? { ...prev, [key]: !value } : prev));
+      throw err;
+    }
+  }, []);
+
+  const saveHardwareSettings = useCallback(async (updates: Partial<HardwareSettings>) => {
+    setHardwareSettings(await updateHardwareSettings(updates));
+  }, []);
+
+  // This week's plan = exactly what the server will run: each day's time + amount from the
+  // Weekly Weather screen, if the schedule switch is on. (Rain skipping is decided live by the
+  // rain sensor at watering time, not by the sample forecast.)
   const predictedWatering = useMemo(
     () =>
       weeklyWeatherMock.map((w) => {
-        const skip = w.condition === 'rain' || w.rainChance >= 60;
-        return { day: w.day, watering: !skip, reason: skip ? 'Skipped — rain forecast' : 'Scheduled' };
+        const plan = wateringSchedule[w.day];
+        const on = !!switches?.timer && !!plan && plan.amountLiters > 0;
+        return {
+          day: w.day,
+          watering: on,
+          reason: !switches?.timer ? 'Schedule off' : plan && plan.amountLiters > 0 ? `${plan.time} · ${plan.amountLiters}L` : 'No watering set',
+        };
       }),
-    []
+    [wateringSchedule, switches?.timer]
   );
 
-  const waterNow = useCallback(
-    async (reason: string) => {
-      if (wateringActiveRef.current) return;
-      wateringActiveRef.current = true;
-      try {
-        await setSwitch('valve', true);
-        await setSwitch('valve', false);
-        setLastWatering('Just now');
-        addNotification('watered', 'water', 'blue', 'Crop watered', `${reason} — ${automationLimits.overrideAmountLiters}L released`);
-      } catch (err) {
-        console.warn('Auto-watering failed:', err);
-      } finally {
-        wateringActiveRef.current = false;
-      }
-    },
-    [addNotification, automationLimits.overrideAmountLiters]
-  );
+  const waterNow = useCallback(async (liters?: number) => {
+    await runValve(liters);
+    setDeviceStatus(await getDeviceStatus());
+  }, []);
 
-  // Poll the real sensor endpoint and run the limit-based auto-watering + tank-low checks.
+  const stopWatering = useCallback(async () => {
+    await stopValve();
+    setDeviceStatus(await getDeviceStatus());
+  }, []);
+
+  // Poll the server for the latest reading, switches and ESP32 status. Limit-triggered
+  // watering now runs on the SERVER (routes/sensors.js) when the ESP32 posts a reading, so it
+  // works with the app closed and can't be triggered twice by two open phones.
   useEffect(() => {
     if (!isLoggedIn) return;
 
@@ -275,35 +311,15 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
 
     const tick = async () => {
       try {
-        const [r, s] = await Promise.all([getLatestSensorReading(), getSwitches()]);
+        // Tank-low, limit, schedule and roof notifications are all created by the server now,
+        // so the notification list is simply re-fetched here.
+        const [r, s, d, n] = await Promise.all([getLatestSensorReading(), getSwitches(), getDeviceStatus(), getNotifications()]);
         if (cancelled) return;
 
         setReading(r);
         setSwitches(s);
-
-        if (r.waterLevel < LOW_WATER_THRESHOLD && !tankLowNotifiedRef.current) {
-          tankLowNotifiedRef.current = true;
-          addNotification('tank-low', 'alert-circle', 'amber', 'Water tank level low', `Tank at ${r.waterLevel}% — refill soon`);
-        } else if (r.waterLevel >= LOW_WATER_THRESHOLD) {
-          tankLowNotifiedRef.current = false;
-        }
-
-        const soilBreach = r.soilMoisture < automationLimits.soilMoistureLimit;
-        const tempBreach = r.airTemp > automationLimits.tempLimit;
-        if (soilBreach || tempBreach) {
-          // Only notify + water once per breach — otherwise every 30s poll while the
-          // reading stays over/under the limit would spam a fresh notification.
-          if (!breachActiveRef.current) {
-            breachActiveRef.current = true;
-            const reason = soilBreach
-              ? `Soil moisture (${r.soilMoisture}%) is below the ${automationLimits.soilMoistureLimit}% limit`
-              : `Temperature (${r.airTemp}°C) is above the ${automationLimits.tempLimit}°C limit`;
-            addNotification('limit-exceeded', 'warning', 'amber', 'Automation limit exceeded', reason);
-            waterNow(reason);
-          }
-        } else {
-          breachActiveRef.current = false;
-        }
+        setDeviceStatus(d);
+        setNotifications(n);
       } catch (err) {
         console.warn('Failed to poll sensor reading:', err);
       }
@@ -315,7 +331,7 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [isLoggedIn, automationLimits, addNotification, waterNow]);
+  }, [isLoggedIn]);
 
   // Heat-stress prediction: fetch on login, then on a slow cadence — retraining every 30s
   // like the sensor poll would be wasteful even though each request is individually cheap.
@@ -386,6 +402,10 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
       .then((c) => setCalibrationState(c as Record<SensorKey, Calibration>))
       .catch((err) => console.warn('Failed to load calibration:', err));
 
+    getHardwareSettings()
+      .then(setHardwareSettings)
+      .catch((err) => console.warn('Failed to load hardware settings:', err));
+
     getNotifications()
       .then(setNotifications)
       .catch((err) => console.warn('Failed to load notifications:', err));
@@ -450,6 +470,12 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
         setAutomationLimits,
         switches,
         setRoof,
+        deviceStatus,
+        waterNow,
+        stopWatering,
+        hardwareSettings,
+        saveHardwareSettings,
+        setSwitchValue,
         notifications,
         lifecycleLogs,
         adminUsers,

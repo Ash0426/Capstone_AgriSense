@@ -114,7 +114,63 @@ db.exec(`
     desc TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- Current valve run (single row). The server owns the timing: open_until is when the valve
+  -- must close. The ESP32 just mirrors whatever /api/device/commands says.
+  CREATE TABLE IF NOT EXISTS valve_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    is_open INTEGER NOT NULL DEFAULT 0,
+    opened_at TEXT,
+    open_until TEXT,
+    reason TEXT,
+    opened_by TEXT
+  );
+
+  -- When the ESP32 last talked to the server (single row) — drives the app's Online/Offline badge.
+  -- The *_raw columns hold the latest raw analog readings (0-4095) so the app can show them
+  -- while you calibrate.
+  CREATE TABLE IF NOT EXISTS device_status (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    last_seen TEXT,
+    ip TEXT
+  );
+
+  -- Everything the hardware follows that the farmer sets in the app (single row).
+  CREATE TABLE IF NOT EXISTS hardware_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    -- sensor calibration: raw analog value at 0% and at 100%
+    soil_dry_raw INTEGER NOT NULL DEFAULT 3000,
+    soil_wet_raw INTEGER NOT NULL DEFAULT 1300,
+    water_empty_raw INTEGER NOT NULL DEFAULT 0,
+    water_full_raw INTEGER NOT NULL DEFAULT 2000,
+    rain_dry_raw INTEGER NOT NULL DEFAULT 4095,
+    rain_wet_raw INTEGER NOT NULL DEFAULT 1500,
+    -- rules
+    tank_min_level REAL NOT NULL DEFAULT 20,       -- % — below this, never water (protects the valve) and warn
+    rain_threshold REAL NOT NULL DEFAULT 30,       -- % — rain sensor at/above this counts as "raining"
+    roof_mode TEXT NOT NULL DEFAULT 'manual',      -- 'manual' | 'auto'
+    roof_close_temp REAL NOT NULL DEFAULT 32,      -- auto: close the roof (shade) above this °C
+    roof_close_on_rain INTEGER NOT NULL DEFAULT 1, -- auto: close the roof while raining
+    servo_open_angle INTEGER NOT NULL DEFAULT 90,
+    servo_closed_angle INTEGER NOT NULL DEFAULT 0,
+    sensor_interval_sec INTEGER NOT NULL DEFAULT 30,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
+
+db.prepare('INSERT OR IGNORE INTO valve_state (id, is_open) VALUES (1, 0)').run();
+db.prepare('INSERT OR IGNORE INTO device_status (id) VALUES (1)').run();
+db.prepare('INSERT OR IGNORE INTO hardware_settings (id) VALUES (1)').run();
+
+function addColumnIfMissing(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+addColumnIfMissing('device_status', 'soil_raw', 'INTEGER');
+addColumnIfMissing('device_status', 'water_raw', 'INTEGER');
+addColumnIfMissing('device_status', 'rain_raw', 'INTEGER');
+// Which date each weekday's scheduled watering last ran — so it runs once per day, not every minute.
+addColumnIfMissing('watering_schedule', 'last_run_date', 'TEXT');
 
 // Add the "water_level" column to an already-existing sensor_readings table — nullable since
 // hardware may not report it yet; /sensors/latest falls back to the last known value.

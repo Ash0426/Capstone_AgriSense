@@ -54,10 +54,48 @@ Response 200:
 ```
 `waterLevel` falls back to the last reading that reported one (or 72) if the latest row didn't include it — hardware doesn't have to report it every time.
 
-### POST /sensors  (used by the ESP32 to push a new reading — protect with a device API key in production)
-Request: `{ "airTemp": number, "airHumidity": number, "soilMoisture": number, "rain": number, "waterLevel"?: number }`
-Response 201: `{ "message": "Reading stored" }`
-Also auto-logs a `sensor-soilMoisture` / `sensor-airTemp` / `sensor-waterLevel` entry (see Logs below) whenever that value moves enough from the previous reading to count as a "major shift" (soil/water ≥5%, temp ≥2°C).
+### POST /sensors  (ESP32 only — requires `X-Device-Key: <DEVICE_API_KEY>` header)
+Request: any of `{ "soilRaw", "waterRaw", "rainRaw" }` (raw analog 0-4095, converted to % with the
+calibration from `/hardware-settings`) and/or `{ "airTemp", "airHumidity", "soilMoisture", "rain", "waterLevel" }`.
+Fields not sent carry over from the previous reading.
+Response 201: `{ "message": "Reading stored", "soilMoisture"?, "waterLevel"?, "rain"? }` · 401 if the device key is wrong.
+Then the farmer's rules run on the server (lib/automation.js): tank-low alert (below `tankMinLevel`),
+roof auto rules (if `roofMode` is `auto`), and limit watering (soil below `soilMoistureLimit` or temp
+above `tempLimit` → one timed run of `overrideAmountLiters` per breach).
+Status labels (`Too Hot`, `Dry`, ...) use the ranges from `/calibration`.
+
+---
+
+## Hardware link (ESP32)
+
+### GET /device/commands  (ESP32 only — `X-Device-Key` header)
+Polled every ~2 s.
+Response 200: `{ "valveOpen": boolean, "valveSecondsLeft": number, "roofOpen": boolean, "roofAngle": number, "sensorIntervalSec": number }`
+`roofAngle` is `servoOpenAngle` or `servoClosedAngle`; the board only moves the servo when it changes.
+
+### GET /device/status  (protected)
+Response 200: `{ "online": boolean, "lastSeen": string | null, "valveOpen": boolean, "valveSecondsLeft": number, "valveReason": string | null, "raw": { "soil": number | null, "water": number | null, "rain": number | null } }`
+
+### GET /hardware-settings · PATCH /hardware-settings  (protected)
+`PATCH` body: any subset of
+`{ soilDryRaw, soilWetRaw, waterEmptyRaw, waterFullRaw, rainDryRaw, rainWetRaw` (0-4095),
+`tankMinLevel, rainThreshold` (0-100 %), `roofMode` ("manual" | "auto"), `roofCloseTemp` (°C),
+`roofCloseOnRain` (boolean), `servoOpenAngle, servoClosedAngle` (0-180), `sensorIntervalSec` (5-3600) `}`.
+Both return the full settings object. 400 with a message if a value is out of range.
+
+### Watering schedule (runs on the server)
+Every 20 s the server checks today's row of `/watering-schedule`. At that time (up to 15 min late),
+if the `timer` switch is on, it waters `amountLiters` once for the day — skipped (and logged) if
+the `skipRain` switch is on and the rain sensor is at/above `rainThreshold`. Never waters when the
+tank is below `tankMinLevel`.
+
+### POST /valve/run  (protected)
+Request: `{ "liters"?: number }` (defaults to the saved override amount). Valve opens for
+`liters / VALVE_FLOW_LPM` minutes, capped at `VALVE_MAX_SECONDS`, then the server closes it.
+Response 201: `{ "liters": number, "seconds": number }` · 409 if a run is already going or the tank is below `tankMinLevel`.
+
+### POST /valve/stop  (protected)
+Response 200: `{ "valveOpen": false }`
 
 ---
 
@@ -69,6 +107,8 @@ Response 200: `{ "roof": true, "valve": false, "timer": true, "notifications": t
 ### PATCH /switches/:key  (protected)
 Request: `{ "value": boolean }`
 Response 200: `{ "key": "roof", "value": true }`
+`valve: true` opens the valve until switched off, capped at `VALVE_MAX_SECONDS`.
+`roof` moves the roof now and sets `roofMode` to `manual`. `timer` = run the weekly schedule, `skipRain` = skip it when raining.
 
 ---
 

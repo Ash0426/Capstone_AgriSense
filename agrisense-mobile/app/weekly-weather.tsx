@@ -29,26 +29,24 @@ const WEATHER_LABEL: Record<WeatherCondition, string> = {
 };
 
 export default function WeeklyWeatherScreen() {
-  const { weeklyWeather, predictedWatering, wateringSchedule, setDayWatering } = useFarmData();
+  const { weeklyWeather, predictedWatering, wateringSchedule, setDayWatering, switches } = useFarmData();
 
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [timeInput, setTimeInput] = useState('');
   const [amountInput, setAmountInput] = useState('');
   const [confirmDay, setConfirmDay] = useState<string | null>(null);
 
+  // Describes what the server will actually run (the forecast below is sample data for now).
   const suggestion = useMemo(() => {
     const scheduledDays = predictedWatering.filter((d) => d.watering);
-    const skippedDays = predictedWatering.filter((d) => !d.watering);
-    if (skippedDays.length === 0) {
-      return `No rain expected this week — watering is scheduled on all 7 days.`;
+    if (!switches?.timer) {
+      return 'The watering schedule is OFF — nothing runs at set times. Turn it on in Water Automation. Soil/temperature limits still water when crossed.';
     }
-    if (scheduledDays.length === 0) {
-      return `Rain is expected all week — watering will be skipped every day to conserve water.`;
-    }
-    return `Watering is scheduled on ${scheduledDays.length} of 7 days. It's skipped on ${skippedDays
-      .map((d) => d.day)
-      .join(', ')} due to expected rain — the tank won't be topped up those days unless a sensor limit is exceeded.`;
-  }, [predictedWatering]);
+    if (scheduledDays.length === 0) return 'No day has a watering amount set. Tap a day below to set its time and amount.';
+    return `Watering runs on ${scheduledDays.length} of 7 days at the times below${
+      switches?.skipRain ? ', and is skipped if the rain sensor shows rain at that time' : ''
+    }. Soil/temperature limits can also water in between.`;
+  }, [predictedWatering, switches?.timer, switches?.skipRain]);
 
   const toggleDay = (day: string) => {
     if (expandedDay === day) {
@@ -107,7 +105,7 @@ export default function WeeklyWeatherScreen() {
                       )}
                     </View>
                     <Badge
-                      label={predictedWatering[i].watering ? 'Scheduled' : 'Skipped'}
+                      label={predictedWatering[i].watering ? 'Scheduled' : predictedWatering[i].reason}
                       status={predictedWatering[i].watering ? 'ok' : 'warn'}
                     />
                     <Ionicons
@@ -127,7 +125,7 @@ export default function WeeklyWeatherScreen() {
                             style={styles.input}
                             value={timeInput}
                             onChangeText={setTimeInput}
-                            placeholder="06:00"
+                            placeholder="06:00 (24-hour, e.g. 18:30)"
                             placeholderTextColor={colors.textMuted}
                           />
                         </View>

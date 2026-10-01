@@ -4,7 +4,8 @@
 // below are exceeded (see the auto-watering effect in context/FarmDataContext.tsx). Also
 // hosts the Auto Roof toggle, which doubles as a manual open/close override.
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView } from 'react-native';
+import { router } from 'expo-router';
+import { View, Text, TextInput, StyleSheet, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../constants/theme';
 import { useFarmData } from '../context/FarmDataContext';
@@ -18,11 +19,39 @@ import Button from '../components/ui/Button';
 import ConfirmModal from '../components/ui/ConfirmModal';
 
 export default function AutomationScreen() {
-  const { reading, predictedWatering, automationLimits, setAutomationLimits, switches, setRoof } = useFarmData();
+  const {
+    reading, predictedWatering, automationLimits, setAutomationLimits, switches, setRoof,
+    deviceStatus, waterNow, stopWatering, setSwitchValue, hardwareSettings,
+  } = useFarmData();
+  const [valveBusy, setValveBusy] = useState(false);
+
+  const runValveAction = async (action: () => Promise<void>) => {
+    setValveBusy(true);
+    try {
+      await action();
+    } catch (err) {
+      Alert.alert('Valve', err instanceof Error ? err.message : 'Request failed');
+    } finally {
+      setValveBusy(false);
+    }
+  };
 
   const [soilLimitInput, setSoilLimitInput] = useState(String(automationLimits.soilMoistureLimit));
   const [tempLimitInput, setTempLimitInput] = useState(String(automationLimits.tempLimit));
   const [overrideAmountInput, setOverrideAmountInput] = useState(String(automationLimits.overrideAmountLiters));
+
+  // The limits load from the server after this screen may already be open — keep the boxes in
+  // step with the saved values (otherwise they'd keep showing the 40% / 32°C defaults).
+  const [shownLimits, setShownLimits] = useState(automationLimits);
+  if (shownLimits !== automationLimits) {
+    setShownLimits(automationLimits);
+    setSoilLimitInput(String(automationLimits.soilMoistureLimit));
+    setTempLimitInput(String(automationLimits.tempLimit));
+    setOverrideAmountInput(String(automationLimits.overrideAmountLiters));
+  }
+
+  const toggleSwitch = (key: 'timer' | 'skipRain', value: boolean) =>
+    setSwitchValue(key, value).catch((err) => Alert.alert('Not saved', err instanceof Error ? err.message : 'Request failed'));
   const [soilConfirmVisible, setSoilConfirmVisible] = useState(false);
   const [tempConfirmVisible, setTempConfirmVisible] = useState(false);
   const [overrideAmountConfirmVisible, setOverrideAmountConfirmVisible] = useState(false);
@@ -73,11 +102,63 @@ export default function AutomationScreen() {
       <ScreenHeader title="Water Automation" subtitle="Weather-driven watering with limit-based overrides" showBack />
 
       <Card style={styles.section}>
+        <PanelHeader title="Hardware" subtitle="ESP32 controller link" />
+        <View style={styles.panelBody}>
+          <View style={styles.planRow}>
+            <Text style={styles.planDay}>Controller</Text>
+            <Badge
+              label={deviceStatus ? (deviceStatus.online ? 'Online' : 'Offline') : 'Checking…'}
+              status={deviceStatus?.online ? 'ok' : 'danger'}
+            />
+          </View>
+          <View style={[styles.planRow, { borderBottomWidth: 0, marginBottom: spacing.md }]}>
+            <Text style={styles.planDay}>Valve</Text>
+            <Badge
+              label={
+                deviceStatus?.valveOpen
+                  ? `Watering — ${deviceStatus.valveSecondsLeft}s left`
+                  : 'Closed'
+              }
+              status={deviceStatus?.valveOpen ? 'warn' : 'ok'}
+            />
+          </View>
+          {deviceStatus?.valveOpen ? (
+            <Button label="Stop watering" variant="danger" loading={valveBusy} onPress={() => runValveAction(stopWatering)} />
+          ) : (
+            <Button
+              label={`Water now (${automationLimits.overrideAmountLiters}L)`}
+              loading={valveBusy}
+              onPress={() => runValveAction(() => waterNow())}
+            />
+          )}
+          <Button
+            label="Hardware Settings (calibration, tank, roof)"
+            variant="outline"
+            style={{ marginTop: spacing.md }}
+            onPress={() => router.push('/hardware-settings')}
+          />
+        </View>
+      </Card>
+
+      <Card style={styles.section}>
         <PanelHeader title="This Week's Plan" subtitle={`Watering scheduled on ${scheduledDays} of 7 days`} />
         <View style={styles.panelBody}>
-          <Text style={styles.explainer}>
-            Watering runs automatically based on the weekly weather forecast — skipped on days rain is expected, scheduled on dry days.
-          </Text>
+          <ListItem
+            icon="time"
+            iconBg="green"
+            title="Run watering schedule"
+            desc="Waters at each day's time + amount (edit them on Weekly Weather)"
+            right={<ToggleSwitch value={!!switches?.timer} onValueChange={(v) => toggleSwitch('timer', v)} />}
+          />
+          <ListItem
+            icon="rainy"
+            iconBg="blue"
+            title="Skip when raining"
+            desc={`Skips a scheduled watering if the rain sensor reads ${hardwareSettings?.rainThreshold ?? 30}% or more`}
+            noBorder
+            right={<ToggleSwitch value={!!switches?.skipRain} onValueChange={(v) => toggleSwitch('skipRain', v)} />}
+          />
+          <View style={{ height: spacing.md }} />
           {predictedWatering.map((d) => (
             <View key={d.day} style={styles.planRow}>
               <Text style={styles.planDay}>{d.day}</Text>
@@ -163,12 +244,15 @@ export default function AutomationScreen() {
       </Card>
 
       <Card style={styles.section}>
-        <PanelHeader title="Roof" subtitle="Auto roof control with manual override" />
+        <PanelHeader
+          title="Roof"
+          subtitle={hardwareSettings?.roofMode === 'auto' ? 'Automatic — follows your roof rules' : 'Manual — moves only when you switch it'}
+        />
         <View style={styles.body}>
           <ListItem
             icon="home"
             iconBg="green"
-            title="Auto Roof"
+            title="Roof open"
             desc={switches ? (switches.roof ? 'Currently open' : 'Currently closed') : 'Loading…'}
             noBorder
             right={<ToggleSwitch value={!!switches?.roof} onValueChange={requestRoofToggle} />}
@@ -204,7 +288,7 @@ export default function AutomationScreen() {
     <ConfirmModal
       visible={roofConfirmVisible}
       title={pendingRoofValue ? 'Open the roof?' : 'Close the roof?'}
-      message="This manually overrides the roof position."
+      message="This moves the roof now and switches roof control to Manual. Turn Automatic back on in Hardware Settings."
       confirmLabel={pendingRoofValue ? 'Open' : 'Close'}
       onConfirm={confirmRoofToggle}
       onCancel={() => {

@@ -1,23 +1,39 @@
 // server/routes/sensors.js
+// GET  /api/sensors/latest  (app)    latest reading with Normal/Too Hot/Dry labels
+// POST /api/sensors         (ESP32)  new reading -> stored, then the farmer's automation rules run
+//
+// Status labels use the safe ranges the farmer set in the app (sensor_calibration), and raw
+// analog readings are turned into % using the calibration set on the Hardware Settings screen.
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { requireDevice } = require('../middleware/device');
+const { getSettings, rawToPercent } = require('../lib/settings');
+const automation = require('../lib/automation');
 
 const router = express.Router();
 
-function tempStatus(v) {
-  if (v > 24) return { status: 'danger', label: 'Too Hot' };
-  if (v < 20) return { status: 'warn', label: 'Too Cold' };
+function ranges() {
+  const out = {};
+  db.prepare('SELECT * FROM sensor_calibration').all().forEach((r) => (out[r.sensor_key] = { min: r.min, max: r.max }));
+  return out;
+}
+
+function tempStatus(v, r = ranges().airTemp) {
+  if (r && v > r.max) return { status: 'danger', label: 'Too Hot' };
+  if (r && v < r.min) return { status: 'warn', label: 'Too Cold' };
   return { status: 'ok', label: 'Normal' };
 }
 function humidityStatus(v) {
   return v >= 60 && v <= 80 ? { status: 'ok', label: 'Normal' } : { status: 'warn', label: v < 60 ? 'Too Dry' : 'Too Humid' };
 }
-function soilStatus(v) {
-  return v < 55 ? { status: 'warn', label: 'Dry' } : { status: 'ok', label: 'Good' };
+function soilStatus(v, r = ranges().soilMoisture) {
+  if (r && v < r.min) return { status: 'warn', label: 'Dry' };
+  if (r && v > r.max) return { status: 'warn', label: 'Too Wet' };
+  return { status: 'ok', label: 'Good' };
 }
-function rainStatus(v) {
-  return v > 0 ? { status: 'ok', label: 'Raining' } : { status: 'ok', label: 'No Rain' };
+function rainStatus(v, s = getSettings()) {
+  return v >= s.rainThreshold ? { status: 'ok', label: 'Raining' } : { status: 'ok', label: 'No Rain' };
 }
 
 // "Major shift" thresholds — how much a reading has to move between consecutive readings to
@@ -31,6 +47,11 @@ function logSensorShift(key, value) {
   db.prepare('INSERT INTO logs (type, payload) VALUES (?, ?)').run(`sensor-${key}`, JSON.stringify({ value, time, date }));
 }
 
+// SQLite's datetime('now') is UTC but has no "Z", so phones would read it as local time.
+function sqliteUtcToIso(text) {
+  return text ? `${text.replace(' ', 'T')}Z` : text;
+}
+
 // GET /api/sensors/latest
 router.get('/latest', requireAuth, (req, res) => {
   const row = db.prepare('SELECT * FROM sensor_readings ORDER BY id DESC LIMIT 1').get();
@@ -39,7 +60,7 @@ router.get('/latest', requireAuth, (req, res) => {
   let waterLevel = row.water_level;
   if (waterLevel == null) {
     const last = db.prepare('SELECT water_level FROM sensor_readings WHERE water_level IS NOT NULL ORDER BY id DESC LIMIT 1').get();
-    waterLevel = last?.water_level ?? 72;
+    waterLevel = last?.water_level ?? 0;
   }
 
   const t = tempStatus(row.air_temp);
@@ -53,25 +74,52 @@ router.get('/latest', requireAuth, (req, res) => {
     soilMoisture: row.soil_moisture, soilMoistureStatus: s.status, soilMoistureLabel: s.label,
     rain: row.rain, rainStatus: r.status, rainLabel: r.label,
     waterLevel,
-    updatedAt: row.recorded_at,
+    updatedAt: sqliteUtcToIso(row.recorded_at),
   });
 });
 
-// POST /api/sensors  (ESP32 pushes a new reading here)
-router.post('/', (req, res) => {
-  const { airTemp, airHumidity, soilMoisture, rain, waterLevel } = req.body;
-  if ([airTemp, airHumidity, soilMoisture, rain].some((v) => typeof v !== 'number')) {
-    return res.status(400).json({ error: 'airTemp, airHumidity, soilMoisture, and rain must all be numbers' });
-  }
-  if (waterLevel !== undefined && typeof waterLevel !== 'number') {
-    return res.status(400).json({ error: 'waterLevel must be a number if provided' });
+// POST /api/sensors  (ESP32 — needs the X-Device-Key header)
+// The board sends RAW analog values (soilRaw, waterRaw, rainRaw: 0-4095) and/or ready values
+// (airTemp, airHumidity, soilMoisture, rain, waterLevel). Raw values are converted to % with
+// the farmer's calibration. Anything not sent carries over from the previous reading.
+const PERCENT_FIELDS = { airTemp: 'air_temp', airHumidity: 'air_humidity', soilMoisture: 'soil_moisture', rain: 'rain', waterLevel: 'water_level' };
+const RAW_FIELDS = ['soilRaw', 'waterRaw', 'rainRaw'];
+
+router.post('/', requireDevice, (req, res) => {
+  const body = req.body || {};
+  for (const k of [...Object.keys(PERCENT_FIELDS), ...RAW_FIELDS]) {
+    if (body[k] !== undefined && (typeof body[k] !== 'number' || !Number.isFinite(body[k]))) {
+      return res.status(400).json({ error: `${k} must be a number if provided` });
+    }
   }
 
+  // Raw -> % using the calibration from the app, and remember the raw values for the calibration screen.
+  const cal = getSettings();
+  const measured = {};
+  for (const k of Object.keys(PERCENT_FIELDS)) if (body[k] !== undefined) measured[k] = body[k];
+  if (body.soilRaw !== undefined) measured.soilMoisture = rawToPercent(body.soilRaw, cal.soilDryRaw, cal.soilWetRaw);
+  if (body.waterRaw !== undefined) measured.waterLevel = rawToPercent(body.waterRaw, cal.waterEmptyRaw, cal.waterFullRaw);
+  if (body.rainRaw !== undefined) measured.rain = rawToPercent(body.rainRaw, cal.rainDryRaw, cal.rainWetRaw);
+
+  if (Object.keys(measured).length === 0) {
+    return res.status(400).json({ error: 'Send at least one of: ' + [...RAW_FIELDS, ...Object.keys(PERCENT_FIELDS)].join(', ') });
+  }
+
+  db.prepare('UPDATE device_status SET soil_raw = COALESCE(?, soil_raw), water_raw = COALESCE(?, water_raw), rain_raw = COALESCE(?, rain_raw) WHERE id = 1').run(
+    body.soilRaw ?? null, body.waterRaw ?? null, body.rainRaw ?? null
+  );
+
   const prev = db.prepare('SELECT * FROM sensor_readings ORDER BY id DESC LIMIT 1').get();
+  const pick = (k, fallback) => measured[k] ?? prev?.[PERCENT_FIELDS[k]] ?? fallback;
+  const airTemp = pick('airTemp', 0);
+  const airHumidity = pick('airHumidity', 0);
+  const soilMoisture = pick('soilMoisture', 0);
+  const rain = pick('rain', 0);
+  const waterLevel = measured.waterLevel ?? null;
 
   db.prepare(
     'INSERT INTO sensor_readings (air_temp, air_humidity, soil_moisture, rain, water_level) VALUES (?, ?, ?, ?, ?)'
-  ).run(airTemp, airHumidity, soilMoisture, rain, waterLevel ?? null);
+  ).run(airTemp, airHumidity, soilMoisture, rain, waterLevel);
 
   if (prev) {
     if (Math.abs(soilMoisture - prev.soil_moisture) >= SHIFT_THRESHOLDS.soilMoisture) logSensorShift('soilMoisture', soilMoisture);
@@ -84,16 +132,27 @@ router.post('/', (req, res) => {
   // Also log temp/humidity + soil rows so the History tabs stay populated
   const now = new Date();
   const time = now.toLocaleString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', ' ·');
+  const t = tempStatus(airTemp);
+  const s = soilStatus(soilMoisture);
   db.prepare('INSERT INTO logs (type, payload) VALUES (?, ?)').run(
     'temp_humidity',
-    JSON.stringify({ time, temp: `${airTemp}°C`, humidity: `${airHumidity}%`, status: tempStatus(airTemp).label, statusType: tempStatus(airTemp).status })
+    JSON.stringify({ time, temp: `${airTemp}°C`, humidity: `${airHumidity}%`, status: t.label, statusType: t.status })
   );
   db.prepare('INSERT INTO logs (type, payload) VALUES (?, ?)').run(
     'soil',
-    JSON.stringify({ time, moisture: `${soilMoisture}%`, status: soilStatus(soilMoisture).label, statusType: soilStatus(soilMoisture).status })
+    JSON.stringify({ time, moisture: `${soilMoisture}%`, status: s.label, statusType: s.status })
   );
 
-  res.status(201).json({ message: 'Reading stored' });
+  // The farmer's rules: tank warning, roof auto, limit watering. Only values actually measured
+  // this time can trigger anything (a carried-over temperature never waters the plants).
+  automation.onReading({
+    soilMoisture: measured.soilMoisture,
+    airTemp: measured.airTemp,
+    rain: measured.rain,
+    waterLevel: measured.waterLevel,
+  });
+
+  res.status(201).json({ message: 'Reading stored', soilMoisture: measured.soilMoisture, waterLevel: measured.waterLevel, rain: measured.rain });
 });
 
 module.exports = router;
