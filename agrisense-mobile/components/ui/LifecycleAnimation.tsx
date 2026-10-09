@@ -1,5 +1,5 @@
 // components/ui/LifecycleAnimation.tsx
-// A small stage-specific animation for the lettuce lifecycle — Seedling/Growth/Mature — built
+// A small stage-specific animation for the lettuce lifecycle — Seedling/Thinning/Soil Planting/Mature — built
 // from Ionicons + React Native's built-in Animated API (loops of translate/scale/rotate/opacity,
 // all useNativeDriver: true). This is a stylized, icon-based representation, not illustrated
 // artwork — there's no Lottie/SVG asset pipeline in this project.
@@ -83,6 +83,20 @@ function GrowthAnimation({ size }: { size: number }) {
   );
 }
 
+function SoilPlantingAnimation({ size }: { size: number }) {
+  const value = useLoop(1600);
+  const drop = value.interpolate({ inputRange: [0, 0.5, 1], outputRange: [-size * 0.12, size * 0.02, -size * 0.12] });
+
+  return (
+    <View style={[styles.center, { width: size, height: size }]}>
+      <Animated.View style={{ transform: [{ translateY: drop }] }}>
+        <Ionicons name="leaf" size={size * 0.36} color={colors.textDarkGreen} />
+      </Animated.View>
+      <Ionicons name="ellipse" size={size * 0.2} color={colors.mintHover} style={{ marginTop: -size * 0.04 }} />
+    </View>
+  );
+}
+
 function MatureAnimation({ size }: { size: number }) {
   const value = useLoop(6000);
   const rotate = value.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
@@ -100,7 +114,8 @@ export default function LifecycleAnimation({ stage, size = 88 }: { stage: Lettuc
   return (
     <View style={[styles.disc, { width: size, height: size, borderRadius: size / 2 }]}>
       {stage === 'seedling' && <SeedlingAnimation size={size} />}
-      {stage === 'growth' && <GrowthAnimation size={size} />}
+      {stage === 'thinning' && <GrowthAnimation size={size} />}
+      {stage === 'soil-planting' && <SoilPlantingAnimation size={size} />}
       {stage === 'mature' && <MatureAnimation size={size} />}
     </View>
   );

@@ -4,21 +4,30 @@
 // too, pending a weather API key — see FarmDataContext). Everything else that used to be
 // seed data here now lives in the real database — see server/routes/farm.js.
 
-export type LettuceStage = 'seedling' | 'growth' | 'mature';
+export type LettuceStage = 'seedling' | 'thinning' | 'soil-planting' | 'mature';
 
-export const stageOrder: LettuceStage[] = ['seedling', 'growth', 'mature'];
+export const stageOrder: LettuceStage[] = ['seedling', 'thinning', 'soil-planting', 'mature'];
 export const stageLabels: Record<LettuceStage, string> = {
   seedling: 'Seedling',
-  growth: 'Growth',
+  thinning: 'Thinning',
+  'soil-planting': 'Soil Planting',
   mature: 'Mature',
 };
+export const stageDays: Record<LettuceStage, string> = {
+  seedling: 'Days 1-15',
+  thinning: 'Days 16-30',
+  'soil-planting': 'Days 31-45',
+  mature: 'Days 46-60',
+};
 
-// Stage always follows the plant's age — Day 1-10 Seedling, 11-20 Growth, 21+ Mature.
-// There is no manual stage picker; farmers only ever edit the age.
+// Stage always follows the plant's age — Days 1-15 Seedling, 16-30 Thinning, 31-45 Soil
+// Planting, 46+ Mature (harvest is around day 60). There is no manual stage picker; farmers
+// only ever edit the age.
 export function stageForAge(ageDays: number): LettuceStage {
   const age = Math.max(1, Math.round(ageDays));
-  if (age <= 10) return 'seedling';
-  if (age <= 20) return 'growth';
+  if (age <= 15) return 'seedling';
+  if (age <= 30) return 'thinning';
+  if (age <= 45) return 'soil-planting';
   return 'mature';
 }
 

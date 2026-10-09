@@ -15,6 +15,7 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="login" />
           <Stack.Screen name="forgot-password" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="terms" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="automation" />
           <Stack.Screen name="system-logs" />

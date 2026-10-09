@@ -28,5 +28,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  logo: { width: 120, height: 24 },
+  logo: { width: 150, height: 29 },
 });

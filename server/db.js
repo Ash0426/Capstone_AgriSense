@@ -195,6 +195,26 @@ if (!userColumns.some((c) => c.name === 'disabled')) {
   db.exec('ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0');
 }
 
+// Quick-login PIN (bcrypt hash), failed-PIN counter, and when the account last logged in.
+addColumnIfMissing('users', 'pin_hash', 'TEXT');
+addColumnIfMissing('users', 'pin_attempts', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('users', 'last_login_at', 'TEXT');
+
+// Devices an account has already verified on. A login from an unknown device, or after 3+ days
+// without any login, needs an emailed OTP (see routes/auth.js).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_devices (
+    user_id INTEGER NOT NULL,
+    device_id TEXT NOT NULL,
+    last_login_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, device_id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+`);
+
+// Optional farmer note saved with each lettuce health rating.
+addColumnIfMissing('health_logs', 'note', 'TEXT');
+
 // Seed default switches if empty (first run only)
 const switchDefaults = { roof: 1, valve: 0, timer: 1, notifications: 1, skipRain: 1 };
 const insertSwitch = db.prepare('INSERT OR IGNORE INTO switches (key, value) VALUES (?, ?)');

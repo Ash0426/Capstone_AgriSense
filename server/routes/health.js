@@ -23,14 +23,16 @@ router.post('/health-log', requireAuth, (req, res) => {
     return res.status(400).json({ error: `rating must be one of: ${RATINGS.join(', ')}` });
   }
 
+  const note = typeof req.body.note === 'string' ? req.body.note.trim().slice(0, 500) : '';
+
   const latest = db.prepare('SELECT * FROM sensor_readings ORDER BY id DESC LIMIT 1').get();
   const stressed = STRESSED_RATINGS.includes(rating) ? 1 : 0;
 
   const result = db
     .prepare(
-      'INSERT INTO health_logs (user_id, rating, stressed, air_temp, air_humidity, soil_moisture) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO health_logs (user_id, rating, stressed, air_temp, air_humidity, soil_moisture, note) VALUES (?, ?, ?, ?, ?, ?, ?)'
     )
-    .run(req.userId, rating, stressed, latest?.air_temp ?? null, latest?.air_humidity ?? null, latest?.soil_moisture ?? null);
+    .run(req.userId, rating, stressed, latest?.air_temp ?? null, latest?.air_humidity ?? null, latest?.soil_moisture ?? null, note || null);
 
   db.prepare('INSERT INTO user_activity (user_id, action) VALUES (?, ?)').run(req.userId, `Logged lettuce health: ${rating}`);
 

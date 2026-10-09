@@ -25,10 +25,10 @@ Safety kept on the board: it closes the valve if the server goes quiet for 15 s,
 
 ## Setup
 
-1. **Libraries** (Arduino IDE → Tools → Manage Libraries): `ESP32Servo`, `ArduinoJson` (7.x).
+1. **Libraries** (Arduino IDE → Tools → Manage Libraries): `ESP32Servo`, `ArduinoJson` (7.x), `WiFiManager` (by tzapu).
    For a temperature sensor, also install `DHT sensor library` + `Adafruit Unified Sensor` (DHT11/22) or `OneWire` + `DallasTemperature` (DS18B20).
 2. **Server `.env`**: `DEVICE_API_KEY`, `VALVE_FLOW_LPM`, `VALVE_MAX_SECONDS` (see `server/.env.example`), then restart the server.
-3. **Sketch, section 1**: Wi-Fi name/password (2.4 GHz), `SERVER_URL` = laptop LAN IP + `:4000`, `DEVICE_KEY` = same as `DEVICE_API_KEY`.
+3. **Sketch, section 1**: optional pre-set Wi-Fi networks (2.4 GHz; new ones can be added later from your phone: when no known network is in range the ESP32 opens a Wi-Fi called `AgriSense-Setup`, join it, pick the network and enter its password, and it remembers it), `SERVER_HOST` = laptop's computer name (`$env:COMPUTERNAME`; found automatically via mDNS, no IP needed), `DEVICE_KEY` = same as `DEVICE_API_KEY`.
 4. **Sketch, section 2**: sensor pins (ADC1 only: 32–39) and `TEMP_SENSOR` type.
 5. Upload, open Serial Monitor at **115200**.
 6. Calibrate in the app: **Water Automation → Hardware Settings**.

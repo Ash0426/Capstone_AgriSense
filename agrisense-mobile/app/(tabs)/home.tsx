@@ -5,10 +5,9 @@
 // state lives in FarmDataContext so calibration, automation limits, notifications, and logs
 // stay in sync with what's shown here.
 import React from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useFarmData } from '../../context/FarmDataContext';
 import { stageLabels, sensorMeta, WeatherCondition } from '../../data/mockData';
@@ -16,6 +15,7 @@ import Card from '../../components/ui/Card';
 import PanelHeader from '../../components/ui/PanelHeader';
 import MetricCard from '../../components/ui/MetricCard';
 import LifecycleAnimation from '../../components/ui/LifecycleAnimation';
+import TopHeader from '../../components/ui/TopHeader';
 
 const WEATHER_ICON: Record<WeatherCondition, keyof typeof Ionicons.glyphMap> = {
   sunny: 'sunny',
@@ -42,17 +42,16 @@ export default function HomeScreen() {
 
   const waterLevelStatus = waterLevel < 20 ? 'danger' : waterLevel < 40 ? 'warn' : 'ok';
   const waterLevelLabel = waterLevel < 20 ? 'Low' : waterLevel < 40 ? 'Getting Low' : 'Normal';
-  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.flex}>
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
+      <TopHeader />
+      <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.titleRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.pageTitle}>Dashboard</Text>
             <Text style={styles.pageSub}>Live sensor readings — updates every 30 seconds</Text>
           </View>
-          <Image source={require('../../assets/images/logo-straight.png')} style={styles.headerLogo} resizeMode="contain" />
         </View>
 
         {/* Out-of-calibration alert banner */}
@@ -215,7 +214,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.lg, paddingBottom: 40 },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.lg },
-  headerLogo: { width: 70, height: 14, marginTop: 4 },
   pageTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary, marginBottom: 2 },
   pageSub: { fontSize: 12, color: colors.textSecondary },
   section: { marginBottom: spacing.lg },

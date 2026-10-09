@@ -1,23 +1,27 @@
 // context/AuthContext.tsx
 // Holds who's logged in + the auth token, and shares it with every screen via useAuth().
-// Note: this only lives in memory, so closing the app fully will log the user out again.
-// If you want "stay logged in" behavior later, install @react-native-async-storage/async-storage
-// and save/load the token there in login()/logout()/on app start.
+// The session itself only lives in memory, so closing the app fully logs the user out again.
 //
-// Login also requires a step-up OTP whenever the last successful login was 24h+ ago (or
-// there hasn't been one yet this session) — see login()/completeStepUp() below. Because
-// lastLoginAt is memory-only, a fresh app launch always requires OTP, which is expected.
-import React, { createContext, useContext, useState, useCallback } from 'react';
+// Whether a login needs an emailed OTP is decided by the server: it asks for one when this
+// device hasn't been verified for the account before, or the account hasn't logged in for 3+
+// days. login() returns { requiresStepUp: true } in that case; the screen then calls
+// verifyStepUp(code) to finish. A PIN can be used in place of the password (see login()).
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { setAuthToken } from '../api/client';
-import { login as apiLogin, AuthUser } from '../api/endpoints';
-
-const STEP_UP_WINDOW_MS = 24 * 60 * 60 * 1000;
+import { getDeviceId } from '../api/deviceId';
+import {
+  login as apiLogin,
+  verifyLoginStepUpOtp,
+  resendLoginStepUpOtp,
+  AuthUser,
+} from '../api/endpoints';
 
 type AuthContextValue = {
   user: AuthUser | null;
   isLoggedIn: boolean;
-  login: (email: string, password: string) => Promise<{ requiresStepUp: boolean }>;
-  completeStepUp: () => void;
+  login: (email: string, secret: { password?: string; pin?: string }) => Promise<{ requiresStepUp: boolean }>;
+  verifyStepUp: (otp: string) => Promise<void>;
+  resendStepUpOtp: () => Promise<void>;
   logout: () => void;
   setUser: (user: AuthUser) => void;
 };
@@ -26,45 +30,44 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [pendingUser, setPendingUser] = useState<AuthUser | null>(null);
-  const [pendingToken, setPendingToken] = useState<string | null>(null);
-  const [lastLoginAt, setLastLoginAt] = useState<string | null>(null);
+  const stepUpToken = useRef<string | null>(null);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { token, user: loggedInUser } = await apiLogin(email, password);
-    const requiresStepUp = !lastLoginAt || Date.now() - new Date(lastLoginAt).getTime() >= STEP_UP_WINDOW_MS;
+  const login = useCallback(async (email: string, secret: { password?: string; pin?: string }) => {
+    const deviceId = await getDeviceId();
+    const result = await apiLogin(email, secret, deviceId);
 
-    if (!requiresStepUp) {
-      setAuthToken(token);
-      setUser(loggedInUser);
-      setLastLoginAt(new Date().toISOString());
-      return { requiresStepUp: false };
+    if (result.requiresStepUp) {
+      stepUpToken.current = result.stepUpToken;
+      return { requiresStepUp: true };
     }
 
-    setPendingUser(loggedInUser);
-    setPendingToken(token);
-    return { requiresStepUp: true };
-  }, [lastLoginAt]);
+    setAuthToken(result.token);
+    setUser(result.user);
+    return { requiresStepUp: false };
+  }, []);
 
-  const completeStepUp = useCallback(() => {
-    if (!pendingUser || !pendingToken) return;
-    setAuthToken(pendingToken);
-    setUser(pendingUser);
-    setLastLoginAt(new Date().toISOString());
-    setPendingUser(null);
-    setPendingToken(null);
-  }, [pendingUser, pendingToken]);
+  const verifyStepUp = useCallback(async (otp: string) => {
+    if (!stepUpToken.current) throw new Error('Login session expired. Please log in again.');
+    const { token, user: verifiedUser } = await verifyLoginStepUpOtp(stepUpToken.current, otp);
+    stepUpToken.current = null;
+    setAuthToken(token);
+    setUser(verifiedUser);
+  }, []);
+
+  const resendStepUpOtp = useCallback(async () => {
+    if (!stepUpToken.current) throw new Error('Login session expired. Please log in again.');
+    await resendLoginStepUpOtp(stepUpToken.current);
+  }, []);
 
   const logout = useCallback(() => {
     setAuthToken(null);
     setUser(null);
-    // lastLoginAt is intentionally left as-is: it tracks the last successful login, not the
-    // last active session, so logging back in within the window still skips the OTP step.
+    stepUpToken.current = null;
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoggedIn: !!user, login, completeStepUp, logout, setUser }}
+      value={{ user, isLoggedIn: !!user, login, verifyStepUp, resendStepUpOtp, logout, setUser }}
     >
       {children}
     </AuthContext.Provider>

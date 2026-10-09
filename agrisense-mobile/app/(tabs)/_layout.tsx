@@ -1,5 +1,5 @@
 // app/(tabs)/_layout.tsx
-// Bottom tab bar: Home, Profile, Notification. Add more tabs here later if needed.
+// Bottom tab bar, left to right: Notification, Home, Profile. Home is the screen that opens first.
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      initialRouteName="home"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.mint,
@@ -25,6 +26,13 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
+        name="notification"
+        options={{
+          title: 'Notification',
+          tabBarIcon: ({ color, size }) => <Ionicons name="notifications" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
@@ -36,13 +44,6 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="notification"
-        options={{
-          title: 'Notification',
-          tabBarIcon: ({ color, size }) => <Ionicons name="notifications" size={size} color={color} />,
         }}
       />
     </Tabs>

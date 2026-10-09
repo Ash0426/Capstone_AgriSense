@@ -7,7 +7,7 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 
 function publicUser(u) {
-  return { id: u.id, name: u.name, email: u.email, role: u.role, color: u.color };
+  return { id: u.id, name: u.name, email: u.email, role: u.role, color: u.color, hasPin: !!u.pin_hash };
 }
 
 // Full record shown in the admin Users list — includes the hashed password, on purpose.
@@ -50,6 +50,35 @@ router.patch('/me', requireAuth, (req, res) => {
 
   const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
   res.json(publicUser(updated));
+});
+
+// PUT /api/users/me/pin  — set or change the quick-login PIN (4-6 digits). Needs the current password.
+router.put('/me/pin', requireAuth, (req, res) => {
+  const { pin, password } = req.body;
+  if (!/^\d{4,6}$/.test(pin || '')) return res.status(400).json({ error: 'PIN must be 4 to 6 digits' });
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!password || !bcrypt.compareSync(password, user.password_hash)) {
+    return res.status(401).json({ error: 'Current password is incorrect' });
+  }
+
+  db.prepare('UPDATE users SET pin_hash = ?, pin_attempts = 0 WHERE id = ?').run(bcrypt.hashSync(pin, 10), user.id);
+  db.prepare('INSERT INTO user_activity (user_id, action) VALUES (?, ?)').run(user.id, 'Set login PIN');
+  res.json(publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)));
+});
+
+// POST /api/users/me/pin/remove  — turn the PIN off. Needs the current password.
+router.post('/me/pin/remove', requireAuth, (req, res) => {
+  const { password } = req.body || {};
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!password || !bcrypt.compareSync(password, user.password_hash)) {
+    return res.status(401).json({ error: 'Current password is incorrect' });
+  }
+  db.prepare('UPDATE users SET pin_hash = NULL, pin_attempts = 0 WHERE id = ?').run(user.id);
+  db.prepare('INSERT INTO user_activity (user_id, action) VALUES (?, ?)').run(user.id, 'Removed login PIN');
+  res.json(publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)));
 });
 
 // GET /api/users/me/activity
@@ -132,6 +161,7 @@ router.delete('/:id', requireAuth, requireAdmin, (req, res) => {
   const deleteUser = db.transaction(() => {
     db.prepare('DELETE FROM user_activity WHERE user_id = ?').run(targetId);
     db.prepare('DELETE FROM health_logs WHERE user_id = ?').run(targetId);
+    db.prepare('DELETE FROM user_devices WHERE user_id = ?').run(targetId);
     db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
     db.prepare('INSERT INTO user_activity (user_id, action) VALUES (?, ?)').run(req.userId, `Deleted user: ${target.name}`);
   });

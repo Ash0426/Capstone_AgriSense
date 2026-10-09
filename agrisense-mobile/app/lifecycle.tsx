@@ -1,7 +1,7 @@
 // app/lifecycle.tsx
 // Full Lettuce Lifecycle page, opened from the banner on the Dashboard. Stage always follows
-// the plant's age (Day 1-10 Seedling, 11-20 Growth, 21+ Mature) — there's no manual stage
-// picker, only an age field. The health-rating question only shows once per calendar day;
+// the plant's age (Days 1-15 Seedling, 16-30 Thinning, 31-45 Soil Planting, 46+ Mature) — there's
+// no manual stage picker, only an age field. The health-rating question only shows once per calendar day;
 // after answering, today's rating can still be edited (via the "Edit" link) until midnight.
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../constants/theme';
 import { useFarmData } from '../context/FarmDataContext';
-import { stageOrder, stageLabels, healthRatingOptions } from '../data/mockData';
+import { stageOrder, stageLabels, stageDays, healthRatingOptions } from '../data/mockData';
 import Card from '../components/ui/Card';
 import PanelHeader from '../components/ui/PanelHeader';
 import ScreenHeader from '../components/ui/ScreenHeader';
@@ -27,6 +27,7 @@ export default function LifecycleScreen() {
 
   const [healthEditing, setHealthEditing] = useState(false);
   const [selectedRating, setSelectedRating] = useState<string | null>(null);
+  const [healthNote, setHealthNote] = useState('');
   const [healthConfirmVisible, setHealthConfirmVisible] = useState(false);
 
   const today = new Date().toDateString();
@@ -48,17 +49,19 @@ export default function LifecycleScreen() {
   const openEditHealth = () => {
     if (!latestHealthEntry) return;
     setSelectedRating(latestHealthEntry.rating);
+    setHealthNote(latestHealthEntry.note ?? '');
     setHealthEditing(true);
   };
 
   const confirmLogHealth = () => {
     if (!selectedRating) return;
     if (healthEditing && latestHealthEntry) {
-      editHealthLog(latestHealthEntry.id, selectedRating);
+      editHealthLog(latestHealthEntry.id, selectedRating, healthNote);
     } else {
-      logHealth(selectedRating);
+      logHealth(selectedRating, healthNote);
     }
     setSelectedRating(null);
+    setHealthNote('');
     setHealthEditing(false);
     setHealthConfirmVisible(false);
   };
@@ -66,7 +69,7 @@ export default function LifecycleScreen() {
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <ScreenHeader title="Lettuce Lifecycle" subtitle="Seedling → Growth → Mature" showBack />
+        <ScreenHeader title="Lettuce Lifecycle" subtitle="Seedling → Thinning → Soil Planting → Mature" showBack />
 
         <Card style={styles.section}>
           <View style={styles.panelBody}>
@@ -82,6 +85,7 @@ export default function LifecycleScreen() {
                     <Text style={[styles.stepperLabel, i === stageIndex && styles.stepperLabelActive]}>
                       {stageLabels[s]}
                     </Text>
+                    <Text style={styles.stepperDays}>{stageDays[s]}</Text>
                   </View>
                   {i < stageOrder.length - 1 && (
                     <View style={[styles.stepperLine, i < stageIndex && styles.stepperLineActive]} />
@@ -91,7 +95,7 @@ export default function LifecycleScreen() {
             </View>
 
             <Text style={styles.statement}>
-              Your lettuce is currently in the <Text style={styles.statementBold}>{stageLabels[stage]}</Text> stage —{' '}
+              Your lettuce is currently in the <Text style={styles.statementBold}>{stageLabels[stage]}</Text> stage ({stageDays[stage].toLowerCase()}) —{' '}
               Age {lifecycle.ageDays} {lifecycle.ageDays === 1 ? 'day' : 'days'}.
             </Text>
             <Text style={styles.hint}>The stage updates automatically based on age — there's no manual stage picker.</Text>
@@ -145,9 +149,21 @@ export default function LifecycleScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+
+                <Text style={[styles.fieldLabel, { marginTop: spacing.lg }]}>Add a note (optional)</Text>
+                <TextInput
+                  style={styles.noteInput}
+                  value={healthNote}
+                  onChangeText={setHealthNote}
+                  placeholder="e.g. Leaf edges look brown, watered late yesterday"
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                  maxLength={500}
+                  textAlignVertical="top"
+                />
                 <View style={styles.updateActions}>
                   {healthEditing && (
-                    <TouchableOpacity onPress={() => { setHealthEditing(false); setSelectedRating(null); }} style={styles.cancelLink}>
+                    <TouchableOpacity onPress={() => { setHealthEditing(false); setSelectedRating(null); setHealthNote(''); }} style={styles.cancelLink}>
                       <Text style={styles.cancelLinkText}>Cancel</Text>
                     </TouchableOpacity>
                   )}
@@ -167,6 +183,7 @@ export default function LifecycleScreen() {
                 <Text style={styles.loggedTodayTime}>
                   {new Date(latestHealthEntry.loggedAt).toLocaleString('en-US', { month: 'short', day: '2-digit', hour: 'numeric', minute: '2-digit' })}
                 </Text>
+                {latestHealthEntry.note ? <Text style={styles.noteShown}>Note: {latestHealthEntry.note}</Text> : null}
                 <TouchableOpacity onPress={openEditHealth} style={styles.editLink}>
                   <Ionicons name="create-outline" size={14} color={colors.mint} />
                   <Text style={styles.editLinkText}>Edit today's rating</Text>
@@ -190,10 +207,13 @@ export default function LifecycleScreen() {
             {healthLog.length ? (
               healthLog.map((entry, i) => (
                 <View key={entry.id} style={[styles.logRow, i === healthLog.length - 1 && styles.noBorder]}>
-                  <Text style={styles.logDay}>
-                    {new Date(entry.loggedAt).toLocaleString('en-US', { month: 'short', day: '2-digit', hour: 'numeric', minute: '2-digit' })}
-                  </Text>
-                  <Text style={styles.logRating}>{entry.rating}</Text>
+                  <View style={styles.logTopRow}>
+                    <Text style={styles.logDay}>
+                      {new Date(entry.loggedAt).toLocaleString('en-US', { month: 'short', day: '2-digit', hour: 'numeric', minute: '2-digit' })}
+                    </Text>
+                    <Text style={styles.logRating}>{entry.rating}</Text>
+                  </View>
+                  {entry.note ? <Text style={styles.logNote}>{entry.note}</Text> : null}
                 </View>
               ))
             ) : (
@@ -214,7 +234,7 @@ export default function LifecycleScreen() {
       <ConfirmModal
         visible={healthConfirmVisible}
         title={healthEditing ? "Update today's rating?" : 'Log lettuce health?'}
-        message={selectedRating ? `Record today's rating as "${selectedRating}".` : ''}
+        message={selectedRating ? `Record today's rating as "${selectedRating}"${healthNote.trim() ? ' with your note' : ''}.` : ''}
         confirmLabel={healthEditing ? 'Save' : 'Data Log'}
         onConfirm={confirmLogHealth}
         onCancel={() => setHealthConfirmVisible(false)}
@@ -232,12 +252,13 @@ const styles = StyleSheet.create({
 
   animationWrap: { alignItems: 'center', marginBottom: spacing.lg },
   stepperRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.lg },
-  stepperItem: { alignItems: 'center', width: 72 },
+  stepperItem: { alignItems: 'center', width: 64 },
   stepperDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.border },
   stepperDotActive: { backgroundColor: colors.mint },
-  stepperLabel: { fontSize: 11, color: colors.textMuted, marginTop: 6 },
+  stepperLabel: { fontSize: 11, color: colors.textMuted, marginTop: 6, textAlign: 'center' },
+  stepperDays: { fontSize: 9, color: colors.textMuted, marginTop: 2, textAlign: 'center' },
   stepperLabelActive: { color: colors.mint, fontWeight: '700' },
-  stepperLine: { flex: 1, height: 2, backgroundColor: colors.border, marginBottom: 20 },
+  stepperLine: { flex: 1, height: 2, backgroundColor: colors.border, marginBottom: 32 },
   stepperLineActive: { backgroundColor: colors.mint },
 
   statement: { fontSize: 15, color: colors.textBody, lineHeight: 22 },
@@ -263,10 +284,14 @@ const styles = StyleSheet.create({
   editLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.md },
   editLinkText: { fontSize: 13, fontWeight: '600', color: colors.mint },
 
-  logRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.divider,
+  noteInput: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: colors.background,
+    paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: 13, color: colors.textPrimary, minHeight: 72,
   },
+  noteShown: { fontSize: 12, color: colors.textBody, marginTop: spacing.sm, lineHeight: 17 },
+  logRow: { paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  logTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  logNote: { fontSize: 12, color: colors.textSecondary, marginTop: 4, lineHeight: 17 },
   noBorder: { borderBottomWidth: 0 },
   logDay: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   logRating: { fontSize: 13, color: colors.textPrimary },

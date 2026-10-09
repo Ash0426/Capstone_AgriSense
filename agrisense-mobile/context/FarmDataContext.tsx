@@ -76,7 +76,7 @@ function healthSeverity(rating: string): 'ok' | 'warn' | 'danger' {
 }
 
 type Lifecycle = { ageDays: number; setAt: string };
-type HealthLogEntry = { id: string; rating: string; loggedAt: string };
+type HealthLogEntry = { id: string; rating: string; loggedAt: string; note?: string };
 type LifecycleLogEntry = { time: string; action: string; statusType: 'ok' | 'warn' | 'danger' };
 type AutomationLimits = { soilMoistureLimit: number; tempLimit: number; overrideAmountLiters: number };
 
@@ -89,8 +89,8 @@ type FarmDataContextValue = {
   setLifecycle: (ageDays: number) => void;
 
   healthLog: HealthLogEntry[];
-  logHealth: (rating: string) => void;
-  editHealthLog: (id: string, rating: string) => void;
+  logHealth: (rating: string, note?: string) => void;
+  editHealthLog: (id: string, rating: string, note?: string) => void;
 
   heatIndex: number;
   waterLevel: number;
@@ -213,11 +213,12 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logHealth = useCallback(
-    (rating: string) => {
-      setHealthLog((prev) => [{ id: `${Date.now()}`, rating, loggedAt: new Date().toISOString() }, ...prev]);
+    (rating: string, note?: string) => {
+      const cleanNote = note?.trim() || undefined;
+      setHealthLog((prev) => [{ id: `${Date.now()}`, rating, loggedAt: new Date().toISOString(), note: cleanNote }, ...prev]);
       addNotification('daily-status', 'sunny', 'amber', 'Daily crop status', `Health logged: ${rating}`);
-      addLifecycleLog(`Health rated: ${rating}${actorSuffix}`, healthSeverity(rating));
-      logHealthRating(rating)
+      addLifecycleLog(`Health rated: ${rating}${cleanNote ? ` — "${cleanNote}"` : ''}${actorSuffix}`, healthSeverity(rating));
+      logHealthRating(rating, cleanNote)
         .then(() => refreshHeatStress())
         .catch((err) => console.warn('Failed to persist health rating:', err));
     },
@@ -225,11 +226,12 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
   );
 
   const editHealthLog = useCallback(
-    (id: string, rating: string) => {
-      setHealthLog((prev) => prev.map((e) => (e.id === id ? { ...e, rating, loggedAt: new Date().toISOString() } : e)));
+    (id: string, rating: string, note?: string) => {
+      const cleanNote = note?.trim() || undefined;
+      setHealthLog((prev) => prev.map((e) => (e.id === id ? { ...e, rating, note: cleanNote, loggedAt: new Date().toISOString() } : e)));
       addNotification('daily-status', 'sunny', 'amber', 'Daily crop status', `Health rating updated to: ${rating}`);
-      addLifecycleLog(`Health rating updated to: ${rating}${actorSuffix}`, healthSeverity(rating));
-      logHealthRating(rating)
+      addLifecycleLog(`Health rating updated to: ${rating}${cleanNote ? ` — "${cleanNote}"` : ''}${actorSuffix}`, healthSeverity(rating));
+      logHealthRating(rating, cleanNote)
         .then(() => refreshHeatStress())
         .catch((err) => console.warn('Failed to persist updated health rating:', err));
     },
@@ -411,7 +413,7 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
       .catch((err) => console.warn('Failed to load notifications:', err));
 
     getHealthLog()
-      .then((rows) => setHealthLog(rows.map((r) => ({ id: String(r.id), rating: r.rating, loggedAt: r.created_at }))))
+      .then((rows) => setHealthLog(rows.map((r) => ({ id: String(r.id), rating: r.rating, loggedAt: r.created_at, note: r.note ?? undefined }))))
       .catch((err) => console.warn('Failed to load health log:', err));
 
     getLogs('lifecycle')

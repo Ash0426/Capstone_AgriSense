@@ -10,7 +10,7 @@ import { router } from 'expo-router';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useFarmData } from '../../context/FarmDataContext';
-import { updateMe } from '../../api/endpoints';
+import { updateMe, setPin as apiSetPin, removePin as apiRemovePin } from '../../api/endpoints';
 import { ApiError } from '../../api/client';
 import Card from '../../components/ui/Card';
 import PanelHeader from '../../components/ui/PanelHeader';
@@ -36,6 +36,11 @@ export default function ProfileScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [creating, setCreating] = useState(false);
   const [createConfirmVisible, setCreateConfirmVisible] = useState(false);
+
+  const [pinOpen, setPinOpen] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [pinPassword, setPinPassword] = useState('');
+  const [pinBusy, setPinBusy] = useState(false);
 
   const [logoutVisible, setLogoutVisible] = useState(false);
 
@@ -99,6 +104,49 @@ export default function ProfileScreen() {
       return;
     }
     setCreateConfirmVisible(true);
+  };
+
+  const closePin = () => {
+    setPinOpen(false);
+    setNewPin('');
+    setPinPassword('');
+  };
+
+  const savePin = async () => {
+    if (!/^[0-9]{4,6}$/.test(newPin)) {
+      Alert.alert('Invalid PIN', 'The PIN must be 4 to 6 digits.');
+      return;
+    }
+    if (!pinPassword) {
+      Alert.alert('Password needed', 'Enter your current password to confirm.');
+      return;
+    }
+    setPinBusy(true);
+    try {
+      setUser(await apiSetPin(newPin, pinPassword));
+      closePin();
+      Alert.alert('PIN saved', 'You can now log in with your email and PIN.');
+    } catch (err) {
+      Alert.alert('Could not save PIN', err instanceof ApiError ? err.message : 'Something went wrong.');
+    } finally {
+      setPinBusy(false);
+    }
+  };
+
+  const removePin = async () => {
+    if (!pinPassword) {
+      Alert.alert('Password needed', 'Enter your current password to remove the PIN.');
+      return;
+    }
+    setPinBusy(true);
+    try {
+      setUser(await apiRemovePin(pinPassword));
+      closePin();
+    } catch (err) {
+      Alert.alert('Could not remove PIN', err instanceof ApiError ? err.message : 'Something went wrong.');
+    } finally {
+      setPinBusy(false);
+    }
   };
 
   const handleLogout = () => {
@@ -180,6 +228,55 @@ export default function ProfileScreen() {
                 <Ionicons name="create-outline" size={14} color={colors.white} />
                 <Text style={styles.cornerBtnText}>Edit</Text>
               </TouchableOpacity>
+            )}
+          </View>
+        </Card>
+
+        <Card style={styles.section}>
+          <PanelHeader title="Login PIN" subtitle="Log in with a 4-6 digit PIN instead of your password" />
+          <View style={styles.body}>
+            {!pinOpen ? (
+              <View style={styles.pinRow}>
+                <Text style={styles.pinStatus}>{user?.hasPin ? 'PIN is on' : 'No PIN set'}</Text>
+                <TouchableOpacity style={styles.cornerBtn} onPress={() => setPinOpen(true)}>
+                  <Ionicons name="keypad-outline" size={14} color={colors.white} />
+                  <Text style={styles.cornerBtnText}>{user?.hasPin ? 'Change PIN' : 'Set PIN'}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View>
+                <TextInput
+                  style={styles.stackedInput}
+                  value={newPin}
+                  onChangeText={(t) => setNewPin(t.replace(/[^0-9]/g, ''))}
+                  placeholder="New PIN (4-6 digits)"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="number-pad"
+                  secureTextEntry
+                  maxLength={6}
+                />
+                <TextInput
+                  style={styles.stackedInput}
+                  value={pinPassword}
+                  onChangeText={setPinPassword}
+                  placeholder="Current password"
+                  placeholderTextColor={colors.textMuted}
+                  secureTextEntry
+                />
+                <View style={styles.createActions}>
+                  <TouchableOpacity onPress={closePin} style={styles.cancelLink}>
+                    <Text style={styles.cancelLinkText}>Cancel</Text>
+                  </TouchableOpacity>
+                  {user?.hasPin && (
+                    <TouchableOpacity onPress={removePin} style={styles.cancelLink} disabled={pinBusy}>
+                      <Text style={[styles.cancelLinkText, { color: colors.danger }]}>Remove PIN</Text>
+                    </TouchableOpacity>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Button label="Save PIN" onPress={savePin} loading={pinBusy} />
+                  </View>
+                </View>
+              </View>
             )}
           </View>
         </Card>
@@ -329,6 +426,8 @@ const styles = StyleSheet.create({
   },
   cornerBtnText: { fontSize: 12, fontWeight: '700', color: colors.white },
   createActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm },
+  pinRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  pinStatus: { fontSize: 14, color: colors.textPrimary, fontWeight: '600' },
   logoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.dangerBg,

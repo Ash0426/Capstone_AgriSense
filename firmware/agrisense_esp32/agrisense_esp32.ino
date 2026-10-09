@@ -1,17 +1,28 @@
-
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <ESP32Servo.h>
+#include <ESPmDNS.h>
+#include <WiFiMulti.h>
+#include <WiFiManager.h>     // Library Manager: "WiFiManager" by tzapu
+#include <Preferences.h>
 
 // ============ 1. EDIT THESE (same values you used before) ===============================
-const char* WIFI_SSID     = "TECNO SPARK 10 Pro";      
-const char* WIFI_PASSWORD = "mabagalnanga";
-const char* SERVER_URL    = "http://10.72.54.142:4000"; 
-const char* DEVICE_KEY    = "6e437ac9914ff3fe4a0b3a5cd74e5b7fdb9d28aa09b3e351";
+// Optional pre-set networks (2.4 GHz). Any other network can be added from your phone, see README.
+struct WifiCred { const char* ssid; const char* pass; };
+const WifiCred WIFI_NETWORKS[] = {
+  { "TECNO SPARK 10 Pro", "mabagalnanga" },
+  { "TP-Link_AC4C", "bismillah3" },
+  // { "School WiFi",      "password" },
+};
+// Laptop's Windows computer name (PowerShell: $env:COMPUTERNAME). The ESP32 finds its current
+// IP by name over mDNS, so you no longer edit an IP when the Wi-Fi changes.
+const char* SERVER_HOST   = "LAPTOP-MI4PEUQO";
+const int   SERVER_PORT   = 4000;
+const char* DEVICE_KEY   = "6e437ac9914ff3fe4a0b3a5cd74e5b7fdb9d28aa09b3e351";
 
 // ============ 2. PINS (only change if your wiring is different) =========================
-#define SERVO_PIN 13
+#define SERVO_PIN 13       
 #define VALVE_PIN 26
 // Relay modules are often "active LOW" (the relay clicks ON when the pin is LOW).
 // If the valve opens at boot or behaves backwards, change this to 0.
@@ -87,20 +98,108 @@ int readAvg(int pin) {
   return sum / 10;
 }
 
+String serverUrl = "";   // http://<ip>:4000, filled in by resolveServer()
+unsigned long lastResolve = 0;
+
+bool resolveServer() {
+  lastResolve = millis();
+  IPAddress ip = MDNS.queryHost(SERVER_HOST, 3000);
+  if (ip == IPAddress((uint32_t)0)) {
+    Serial.printf("[server] could not find %s.local on this network\n", SERVER_HOST);
+    return false;
+  }
+  serverUrl = "http://" + ip.toString() + ":" + String(SERVER_PORT);
+  Serial.printf("[server] %s.local -> %s\n", SERVER_HOST, serverUrl.c_str());
+  return true;
+}
+
+WiFiMulti wifiMulti;
+WiFiManager wm;
+Preferences wifiPrefs;
+bool wifiListLoaded = false;
+bool portalOn = false;
+unsigned long portalStart = 0;
+int wifiFailures = 0;
+const int  MAX_SAVED = 8;
+const unsigned long PORTAL_MS = 180000;   // setup page stays open this long, then known networks are retried
+
+// Networks entered through the setup page are remembered across reboots.
+void saveNetwork(const String& ssid, const String& pass) {
+  int n = wifiPrefs.getUChar("n", 0);
+  for (int i = 0; i < n; i++) {
+    if (wifiPrefs.getString(("s" + String(i)).c_str()) == ssid) {
+      wifiPrefs.putString(("p" + String(i)).c_str(), pass);
+      return;
+    }
+  }
+  int slot = n < MAX_SAVED ? n : 0;
+  wifiPrefs.putString(("s" + String(slot)).c_str(), ssid);
+  wifiPrefs.putString(("p" + String(slot)).c_str(), pass);
+  if (n < MAX_SAVED) wifiPrefs.putUChar("n", n + 1);
+}
+
+void loadNetworks() {
+  wifiPrefs.begin("wifi", false);
+  for (const WifiCred& n : WIFI_NETWORKS) wifiMulti.addAP(n.ssid, n.pass);
+  int n = wifiPrefs.getUChar("n", 0);
+  for (int i = 0; i < n; i++) {
+    String s = wifiPrefs.getString(("s" + String(i)).c_str());
+    String p = wifiPrefs.getString(("p" + String(i)).c_str());
+    if (s.length()) wifiMulti.addAP(s.c_str(), p.c_str());
+  }
+  wifiListLoaded = true;
+}
+
+void onWifiConnected() {
+  Serial.printf("[wifi] connected to %s, ESP32 IP %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
+  MDNS.begin("agrisense-esp32");
+  serverUrl = "";   // network may have changed, look the laptop up again
+  wifiFailures = 0;
+}
+
+// Called from loop() while Wi-Fi is down or the setup page is open. Never blocks for long,
+// so the valve failsafe in loop() keeps running.
 void connectWiFi() {
+  if (!wifiListLoaded) loadNetworks();
+
+  if (portalOn) {
+    wm.process();
+    if (WiFi.status() == WL_CONNECTED) {
+      saveNetwork(WiFi.SSID(), WiFi.psk());
+      wifiMulti.addAP(WiFi.SSID().c_str(), WiFi.psk().c_str());
+      wm.stopConfigPortal();
+      portalOn = false;
+      onWifiConnected();
+    } else if (millis() - portalStart > PORTAL_MS) {
+      wm.stopConfigPortal();
+      portalOn = false;
+      wifiFailures = 0;
+      Serial.println("[wifi] setup page closed, retrying known networks");
+    }
+    return;
+  }
+
   if (WiFi.status() == WL_CONNECTED) return;
-  Serial.printf("[wifi] connecting to %s", WIFI_SSID);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) { delay(300); Serial.print("."); }
-  if (WiFi.status() == WL_CONNECTED) Serial.printf("\n[wifi] connected, ESP32 IP %s\n", WiFi.localIP().toString().c_str());
-  else Serial.println("\n[wifi] failed, will retry");
+
+  Serial.println("[wifi] scanning for a known network...");
+  if (wifiMulti.run(10000) == WL_CONNECTED) {
+    onWifiConnected();
+    return;
+  }
+
+  if (++wifiFailures >= 2) {
+    Serial.println("[wifi] no known network in range. On your phone, join Wi-Fi \"AgriSense-Setup\" and pick the network.");
+    wm.setConfigPortalBlocking(false);
+    wm.startConfigPortal("AgriSense-Setup");
+    portalOn = true;
+    portalStart = millis();
+  }
 }
 
 void pollCommands() {
   HTTPClient http;
   http.setTimeout(3000);
-  http.begin(String(SERVER_URL) + "/api/device/commands");
+  http.begin(serverUrl + "/api/device/commands");
   http.addHeader("X-Device-Key", DEVICE_KEY);
   int code = http.GET();
 
@@ -128,6 +227,7 @@ void pollCommands() {
     }
   } else {
     Serial.printf("[poll] HTTP %d %s\n", code, code == 401 ? "(DEVICE_KEY doesn't match server/.env)" : "");
+    if (code < 0) serverUrl = "";   // unreachable, look the laptop up again
   }
   http.end();
 }
@@ -155,7 +255,7 @@ void sendReadings() {
 
   HTTPClient http;
   http.setTimeout(3000);
-  http.begin(String(SERVER_URL) + "/api/sensors");
+  http.begin(serverUrl + "/api/sensors");
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-Device-Key", DEVICE_KEY);
   int code = http.POST(body);
@@ -196,9 +296,14 @@ void loop() {
     setValve(false);
   }
 
-  if (WiFi.status() != WL_CONNECTED) {
+  if (WiFi.status() != WL_CONNECTED || portalOn) {
     connectWiFi();
-    return;
+    if (WiFi.status() != WL_CONNECTED) return;
+  }
+
+  if (serverUrl.length() == 0) {
+    if (now - lastResolve >= 5000 || lastResolve == 0) resolveServer();
+    if (serverUrl.length() == 0) return;
   }
 
   if (now - lastPoll >= POLL_MS) {

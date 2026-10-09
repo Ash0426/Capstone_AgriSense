@@ -4,10 +4,17 @@
 import { api } from './client';
 
 // ---- Auth ----
-export type AuthUser = { id: number; name: string; email: string; role: string; color: string };
+export type AuthUser = { id: number; name: string; email: string; role: string; color: string; hasPin?: boolean };
 
-export const login = (email: string, password: string) =>
-  api.post<{ token: string; user: AuthUser }>('/auth/login', { email, password });
+// Log in with a password or a PIN. The server answers either with a session (token + user) or,
+// when the device is new / the account was idle 3+ days, with requiresStepUp + a stepUpToken
+// to finish via verifyLoginStepUpOtp (a code has already been emailed).
+export type LoginResult =
+  | { requiresStepUp: false; token: string; user: AuthUser }
+  | { requiresStepUp: true; stepUpToken: string };
+
+export const login = (email: string, secret: { password?: string; pin?: string }, deviceId: string) =>
+  api.post<LoginResult>('/auth/login', { email, ...secret, deviceId });
 
 export const requestPasswordOtp = (email: string) =>
   api.post<{ message: string }>('/auth/forgot-password/request', { email });
@@ -15,13 +22,13 @@ export const requestPasswordOtp = (email: string) =>
 export const resetPassword = (email: string, otp: string, newPassword: string) =>
   api.post<{ message: string }>('/auth/forgot-password/reset', { email, otp, newPassword });
 
-// Login step-up OTP (required when the last successful login was 24h+ ago). Mirrors the
-// forgot-password OTP flow: 6-digit code, emailed via Nodemailer, 10 min expiry.
-export const sendLoginStepUpOtp = (email: string) =>
-  api.post<{ message: string }>('/auth/login/request-otp', { email });
+// Login step-up OTP (new device, or no login for 3+ days): 6-digit code emailed via
+// Nodemailer, 10 min expiry. Verifying it returns the real session.
+export const resendLoginStepUpOtp = (stepUpToken: string) =>
+  api.post<{ message: string }>('/auth/login/request-otp', { stepUpToken });
 
-export const verifyLoginStepUpOtp = (email: string, otp: string) =>
-  api.post<{ message: string }>('/auth/login/verify-otp', { email, otp });
+export const verifyLoginStepUpOtp = (stepUpToken: string, otp: string) =>
+  api.post<{ token: string; user: AuthUser }>('/auth/login/verify-otp', { stepUpToken, otp });
 
 // ---- Sensors ----
 export type SensorReading = {
@@ -95,6 +102,10 @@ export const createLifecycleLog = (action: string, statusType: 'ok' | 'warn' | '
 export const updateMe = (updates: Partial<{ name: string; email: string; password: string; role: string; color: string }>) =>
   api.patch<AuthUser>('/users/me', updates);
 
+// Quick-login PIN (4-6 digits). Both need the current password.
+export const setPin = (pin: string, password: string) => api.put<AuthUser>('/users/me/pin', { pin, password });
+export const removePin = (password: string) => api.post<AuthUser>('/users/me/pin/remove', { password });
+
 // ---- Admin user management ----
 export type AdminUserRecord = {
   id: number;
@@ -125,10 +136,12 @@ export type HealthLogRecord = {
   air_temp: number | null;
   air_humidity: number | null;
   soil_moisture: number | null;
+  note: string | null;
   created_at: string;
 };
 
-export const logHealthRating = (rating: string) => api.post<HealthLogRecord>('/health-log', { rating });
+export const logHealthRating = (rating: string, note?: string) =>
+  api.post<HealthLogRecord>('/health-log', { rating, note });
 
 export const getHealthLog = (limit = 365) => api.get<HealthLogRecord[]>(`/health-log?limit=${limit}`);
 

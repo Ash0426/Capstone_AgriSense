@@ -11,7 +11,7 @@ import Button from './Button';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-type HealthEntry = { id: string; rating: string; loggedAt: string };
+type HealthEntry = { id: string; rating: string; loggedAt: string; note?: string };
 
 function dateKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -108,6 +108,12 @@ export default function HealthCalendar({ entries }: { entries: HealthEntry[] }) 
             ) : (
               <Text style={styles.modalEmpty}>No rating logged for this day.</Text>
             )}
+            {selectedEntry?.note ? (
+              <View style={styles.noteBox}>
+                <Text style={styles.noteLabel}>Note</Text>
+                <Text style={styles.noteText}>{selectedEntry.note}</Text>
+              </View>
+            ) : null}
             <Button label="Close" variant="outline" onPress={() => setSelected(null)} style={{ marginTop: spacing.lg }} />
           </Pressable>
         </Pressable>
@@ -135,4 +141,7 @@ const styles = StyleSheet.create({
   modalRating: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
   modalTime: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   modalEmpty: { fontSize: 13, color: colors.textMuted },
+  noteBox: { marginTop: spacing.md, padding: spacing.md, borderRadius: radius.sm, backgroundColor: colors.background },
+  noteLabel: { fontSize: 11, fontWeight: '700', color: colors.textDarkGreen, marginBottom: 2 },
+  noteText: { fontSize: 13, color: colors.textBody, lineHeight: 18 },
 });
