@@ -1,6 +1,4 @@
-// components/ui/ScreenHeader.tsx
-// Page title + subtitle used at the top of every screen. Pass showBack for pushed screens
-// (automation, irrigation, system logs) so the user can navigate back.
+// screen title
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

@@ -1,4 +1,3 @@
-// server/routes/logs.js
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
@@ -29,8 +28,7 @@ router.get('/:type', requireAuth, (req, res) => {
   res.json(rows.map((r) => JSON.parse(r.payload)));
 });
 
-// POST /api/logs/lifecycle — the only client-writable log type (age/health-rating changes
-// aren't tied to a sensor POST or a switch toggle, so nothing else creates these server-side).
+// POST /api/logs/lifecycle
 router.post('/lifecycle', requireAuth, (req, res) => {
   const { action, statusType } = req.body;
   if (!action || !['ok', 'warn', 'danger'].includes(statusType)) {

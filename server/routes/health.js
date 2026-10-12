@@ -1,7 +1,4 @@
-// server/routes/health.js
-// Persists farmer-submitted lettuce health ratings (each paired with a sensor snapshot) and
-// serves a Random Forest heat-stress prediction trained on that real, human-labeled data.
-// No synthetic data — until enough ratings exist, /ml/heat-stress honestly reports that.
+// health logs and heat stress prediction
 const express = require('express');
 const { RandomForestClassifier } = require('ml-random-forest');
 const db = require('../db');
@@ -71,9 +68,7 @@ router.get('/ml/heat-stress', requireAuth, (req, res) => {
   const X = rows.map((r) => [r.air_temp, r.air_humidity, r.soil_moisture]);
   const y = rows.map((r) => r.stressed);
 
-  // Retrains on every request — the dataset stays small (one row per health check-in) so
-  // this is fast and always reflects the latest ratings.
-  // TODO: cache/retrain on a schedule instead if this dataset ever grows large.
+  // train random forest
   const rf = new RandomForestClassifier({ nEstimators: 50, seed: 42 });
   rf.train(X, y);
 

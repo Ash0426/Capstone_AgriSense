@@ -1,8 +1,4 @@
-// app/weekly-weather.tsx
-// Full weekly forecast + watering suggestion, opened by tapping the Weekly Weather Summary
-// card on the Dashboard. predictedWatering is derived in FarmDataContext from weeklyWeather
-// (skip on rain / high rain chance, schedule otherwise). Each day is tappable to edit that
-// day's independent watering time + amount (FarmDataContext.wateringSchedule).
+// weekly weather and schedule
 import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,7 +32,7 @@ export default function WeeklyWeatherScreen() {
   const [amountInput, setAmountInput] = useState('');
   const [confirmDay, setConfirmDay] = useState<string | null>(null);
 
-  // Describes what the server will actually run (the forecast below is sample data for now).
+  // watering suggestion
   const suggestion = useMemo(() => {
     const scheduledDays = predictedWatering.filter((d) => d.watering);
     if (!switches?.timer) {

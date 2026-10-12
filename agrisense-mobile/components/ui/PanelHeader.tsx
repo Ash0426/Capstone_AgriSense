@@ -1,5 +1,4 @@
-// components/ui/PanelHeader.tsx
-// The header bar at the top of a Card (title + optional right-side badge/link).
+// card header
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, spacing } from '../../constants/theme';

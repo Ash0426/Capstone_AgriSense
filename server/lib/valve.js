@@ -1,22 +1,14 @@
-// server/lib/valve.js
-// All valve timing lives here, on the server — not on the phone and not on the ESP32.
-//
-//   startWatering(liters)  -> opens the valve for liters / VALVE_FLOW_LPM minutes
-//   openManual()           -> opens until someone closes it (capped at VALVE_MAX_SECONDS)
-//   closeValve()           -> closes now
-//
-// A 1-second timer closes the valve when its time is up, even if every phone is closed.
-// The ESP32 polls /api/device/commands and simply copies the current open/closed state.
+// valve control and timer
 const db = require('../db');
 
 function flowLpm() {
   const v = Number(process.env.VALVE_FLOW_LPM);
-  return Number.isFinite(v) && v > 0 ? v : 2; // litres per minute — MEASURE yours, see README
+  return Number.isFinite(v) && v > 0 ? v : 2; // liters per min
 }
 
 function maxSeconds() {
   const v = Number(process.env.VALVE_MAX_SECONDS);
-  return Number.isFinite(v) && v > 0 ? v : 600; // hard cap for any single run (default 10 min)
+  return Number.isFinite(v) && v > 0 ? v : 600; // max seconds
 }
 
 function litersToSeconds(liters) {
@@ -55,8 +47,7 @@ function open(seconds, reason, by) {
   );
 }
 
-// Timed run for a volume of water.
-// Returns 'started', 'running' (a run is already going) or 'tank-low' (below the farmer's minimum).
+// water by liters
 function startWatering(liters, reason, by = 'Automation') {
   if (getState().is_open) return 'running';
 
@@ -76,7 +67,7 @@ function startWatering(liters, reason, by = 'Automation') {
   return 'started';
 }
 
-// Manual "valve on" from the app switch — stays open until switched off, but never past the cap.
+// manual open from app
 function openManual(by) {
   if (getState().is_open) return;
   open(maxSeconds(), 'Manual override', by);
@@ -104,8 +95,7 @@ function closeValve(reasonForLog, by = 'Automation') {
   return true;
 }
 
-// Close the valve when its time is up. Also runs once at startup, so a server restart in the
-// middle of a run can never leave the valve stuck open.
+// close valve when time is up
 function tick() {
   const state = getState();
   if (state.is_open && secondsLeft(state) === 0) closeValve('Run finished');

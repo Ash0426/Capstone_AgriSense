@@ -1,6 +1,4 @@
-// components/ui/ToggleSwitch.tsx
-// Custom on/off switch matching the mint-green style from style.css (.switch-track / .switch-thumb).
-// Using our own instead of RN's <Switch> so it looks identical on iOS and Android.
+// toggle switch
 import React, { useRef, useEffect } from 'react';
 import { TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import { colors } from '../../constants/theme';

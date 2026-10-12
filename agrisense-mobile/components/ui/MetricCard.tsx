@@ -1,7 +1,4 @@
-// components/ui/MetricCard.tsx
-// One of the 4 sensor-reading cards at the top of the dashboard (temp, humidity, soil, rain).
-// Each card gets its own green tint (light to deep) plus a matching icon — tint differentiates
-// the cards at a glance, the icon confirms which sensor it is.
+// sensor card
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

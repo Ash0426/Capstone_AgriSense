@@ -1,8 +1,4 @@
-// app/login.tsx
-// Login screen. Email + password (or, once an email is typed, a quick-login PIN) validate
-// against the real /auth/login endpoint. The server asks for an emailed OTP only when this is
-// a new device or the account hasn't logged in for 3+ days — see AuthContext.login().
-// The form sits in a white card floating over a static, light mint-to-pale-yellow gradient.
+// login screen
 import React, { useState } from 'react';
 import {
   View,

@@ -1,19 +1,10 @@
-// server/lib/automation.js
-// Everything the hardware does on its own, driven only by values the farmer set in the app:
-//
-//   * onReading()     — after each ESP32 reading: tank-low warning, roof auto rules, and
-//                       limit watering (soil below its limit / temperature above its limit)
-//   * scheduleTick()  — every 20 s: runs each weekday's watering at the time + amount set on
-//                       the Weekly Weather screen (if the Schedule switch is on)
-//
-// Nothing here is hard-coded: limits come from automation_limits, the schedule from
-// watering_schedule, and tank/rain/roof rules from hardware_settings.
+// auto watering, roof and schedule
 const db = require('../db');
 const valve = require('./valve');
 const { getSettings } = require('./settings');
 
-const ROOF_TEMP_HYSTERESIS = 1; // °C — reopen only once it's 1°C below the close limit, so the roof doesn't flap
-const SCHEDULE_WINDOW_MIN = 15; // run a missed schedule up to 15 min late (e.g. after a server restart)
+const ROOF_TEMP_HYSTERESIS = 1;
+const SCHEDULE_WINDOW_MIN = 15; // minutes late allowed
 
 let limitBreachActive = false;
 let tankLowActive = false;
@@ -30,7 +21,7 @@ function isRaining(reading, s = getSettings()) {
   return reading != null && reading.rain != null && reading.rain >= s.rainThreshold;
 }
 
-// Moves the roof (the ESP32 follows switches.roof on its next poll) and logs it.
+// move roof
 function setRoof(open, by, reason) {
   if (switchOn('roof') === open) return false;
   db.prepare("UPDATE switches SET value = ? WHERE key = 'roof'").run(open ? 1 : 0);
@@ -86,7 +77,7 @@ function limitWatering(reading) {
     limitBreachActive = false;
     return;
   }
-  if (limitBreachActive) return; // water once per breach, not on every reading while it stays breached
+  if (limitBreachActive) return; // only water once
   limitBreachActive = true;
 
   const reason = soilBreach
@@ -96,7 +87,6 @@ function limitWatering(reading) {
   valve.startWatering(limits.override_amount_liters, reason, 'Automation');
 }
 
-// reading: only the values the board actually measured this time (others undefined).
 function onReading(reading) {
   const s = getSettings();
   tankCheck(reading, s);
@@ -104,9 +94,9 @@ function onReading(reading) {
   limitWatering(reading);
 }
 
-// ---- Weekly schedule ----
+// weekly schedule
 
-// Accepts "06:00", "6:00", "6:00 AM", "18:30", "6:30pm". Returns minutes after midnight or null.
+// time string to minutes
 function parseTime(text) {
   const m = String(text).trim().match(/^(\d{1,2}):(\d{2})\s*([aApP][mM])?$/);
   if (!m) return null;
@@ -124,7 +114,7 @@ function localDate(d) {
 }
 
 function scheduleTick(now = new Date()) {
-  const day = now.toLocaleDateString('en-US', { weekday: 'short' }); // 'Mon'..'Sun' in the laptop's time zone
+  const day = now.toLocaleDateString('en-US', { weekday: 'short' });
   const row = db.prepare('SELECT * FROM watering_schedule WHERE day = ?').get(day);
   if (!row) return;
 
@@ -136,7 +126,7 @@ function scheduleTick(now = new Date()) {
 
   const markDone = () => db.prepare('UPDATE watering_schedule SET last_run_date = ? WHERE day = ?').run(today, day);
 
-  if (!switchOn('timer')) return; // schedule switched off in the app — don't mark, so turning it back on within the window still runs
+  if (!switchOn('timer')) return;
 
   if (!(row.amount_liters > 0)) {
     markDone();
@@ -155,7 +145,7 @@ function scheduleTick(now = new Date()) {
   }
 
   const result = valve.startWatering(row.amount_liters, `Scheduled watering (${day} ${row.time})`, 'Schedule');
-  if (result !== 'running') markDone(); // if another run is going, try again on the next tick
+  if (result !== 'running') markDone(); // retry next tick if busy
 }
 
 function startScheduler() {

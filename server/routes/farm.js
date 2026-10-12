@@ -1,8 +1,4 @@
-// server/routes/farm.js
-// Small farm-wide settings/state that used to live only in the mobile app's memory (reset on
-// every app close): lettuce lifecycle age, water automation limits, the per-day watering
-// schedule, sensor calibration ranges, and the notification feed. All single values or small
-// per-key rows — no per-user scoping, same as switches/sensor_readings/logs.
+// farm settings
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
@@ -10,7 +6,7 @@ const { parseTime } = require('../lib/automation');
 
 const router = express.Router();
 
-// ---- Lifecycle ----
+// lifecycle
 
 router.get('/lifecycle', requireAuth, (req, res) => {
   const row = db.prepare('SELECT * FROM lifecycle WHERE id = 1').get();
@@ -26,7 +22,7 @@ router.patch('/lifecycle', requireAuth, (req, res) => {
   res.json({ ageDays: row.age_days, updatedAt: row.updated_at });
 });
 
-// ---- Automation limits ----
+// automation limits
 
 function publicLimits(row) {
   return { soilMoistureLimit: row.soil_moisture_limit, tempLimit: row.temp_limit, overrideAmountLiters: row.override_amount_liters };
@@ -51,7 +47,7 @@ router.patch('/automation-limits', requireAuth, (req, res) => {
   res.json(publicLimits(db.prepare('SELECT * FROM automation_limits WHERE id = 1').get()));
 });
 
-// ---- Watering schedule ----
+// watering schedule
 
 router.get('/watering-schedule', requireAuth, (req, res) => {
   const rows = db.prepare('SELECT * FROM watering_schedule').all();
@@ -73,13 +69,13 @@ router.patch('/watering-schedule/:day', requireAuth, (req, res) => {
   if (parseTime(time) == null) {
     return res.status(400).json({ error: 'Time must look like 06:00, 18:30 or 6:30 PM' });
   }
-  // INSERT OR REPLACE also clears last_run_date, so a new time later today will still run.
+  // this also resets last_run_date
 
   db.prepare('INSERT OR REPLACE INTO watering_schedule (day, time, amount_liters) VALUES (?, ?, ?)').run(day, time, amountLiters);
   res.json({ day, time, amountLiters });
 });
 
-// ---- Sensor calibration ----
+// sensor calibration
 
 const VALID_SENSOR_KEYS = ['heatIndex', 'soilMoisture', 'airTemp', 'waterLevel'];
 
@@ -103,7 +99,7 @@ router.patch('/calibration/:key', requireAuth, (req, res) => {
   res.json({ key, min, max });
 });
 
-// ---- Notifications ----
+// notifications
 
 function publicNotification(r) {
   return {

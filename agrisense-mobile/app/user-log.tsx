@@ -1,6 +1,4 @@
-// app/user-log.tsx
-// "Users" — full admin user management: Username, User Type, hashed Password, Date Created,
-// each with Edit / Disable / Delete actions. Backed by the real admin-only /users endpoints.
+// users list (admin)
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

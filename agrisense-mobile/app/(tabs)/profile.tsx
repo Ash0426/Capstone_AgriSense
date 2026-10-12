@@ -1,8 +1,4 @@
-// app/(tabs)/profile.tsx
-// Profile tab: one card holding a centered avatar + username/role, with email/password
-// editable via the corner Edit button, admin-only collapsed Create New User (now wired to the
-// real POST /users endpoint), Settings (User Logs / System Logs — Users list is admin-only),
-// Log Out.
+// profile tab
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

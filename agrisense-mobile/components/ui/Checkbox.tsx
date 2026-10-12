@@ -1,5 +1,4 @@
-// components/ui/Checkbox.tsx
-// Simple checkbox (no extra dependency needed). Used for the Terms & Conditions field on login.
+// checkbox
 import React from 'react';
 import { TouchableOpacity, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

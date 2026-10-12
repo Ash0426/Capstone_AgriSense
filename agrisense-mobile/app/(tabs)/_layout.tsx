@@ -1,5 +1,4 @@
-// app/(tabs)/_layout.tsx
-// Bottom tab bar, left to right: Notification, Home, Profile. Home is the screen that opens first.
+// bottom tabs
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';

@@ -1,8 +1,4 @@
-// app/lifecycle.tsx
-// Full Lettuce Lifecycle page, opened from the banner on the Dashboard. Stage always follows
-// the plant's age (Days 1-15 Seedling, 16-30 Thinning, 31-45 Soil Planting, 46+ Mature) — there's
-// no manual stage picker, only an age field. The health-rating question only shows once per calendar day;
-// after answering, today's rating can still be edited (via the "Edit" link) until midnight.
+// lettuce lifecycle screen
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

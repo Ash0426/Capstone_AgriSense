@@ -1,9 +1,7 @@
-// server/lib/settings.js
-// The farmer-set hardware settings (hardware_settings table) in one place, plus the helpers
-// that use them: raw analog -> %, "is it raining?", and the roof's target position.
+// hardware settings
 const db = require('../db');
 
-// API field name -> DB column, with basic limits so a typo in the app can't break the hardware.
+// field -> column, min, max
 const FIELDS = {
   soilDryRaw: { col: 'soil_dry_raw', min: 0, max: 4095, int: true },
   soilWetRaw: { col: 'soil_wet_raw', min: 0, max: 4095, int: true },
@@ -28,7 +26,7 @@ function getSettings() {
   return out;
 }
 
-// Validates a partial update. Returns { error } or { values: {col: value} }.
+// validate settings update
 function validate(body) {
   const values = {};
   for (const [key, f] of Object.entries(FIELDS)) {
@@ -71,8 +69,7 @@ function getRaw() {
   return db.prepare('SELECT * FROM hardware_settings WHERE id = 1').get();
 }
 
-// Raw analog reading -> 0..100 %, using the two calibration points. Works either direction
-// (capacitive soil sensors read LOWER when wet, water-level sensors read HIGHER when wet).
+// raw reading to percent
 function rawToPercent(raw, zeroRaw, fullRaw) {
   if (zeroRaw === fullRaw) return 0;
   const pct = ((raw - zeroRaw) / (fullRaw - zeroRaw)) * 100;

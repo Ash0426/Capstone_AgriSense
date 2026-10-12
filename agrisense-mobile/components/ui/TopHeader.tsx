@@ -1,7 +1,4 @@
-// components/ui/TopHeader.tsx
-// Shared top nav bar for the three tab screens (Dashboard, Notifications, Profile): just the
-// logo-straight brand mark. The tab's own page label lives on the page content below this,
-// left-aligned — not in the nav bar itself.
+// top logo bar
 import React from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

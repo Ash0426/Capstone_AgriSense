@@ -1,6 +1,4 @@
-// components/ui/ListItem.tsx
-// Generic row: icon chip + title/desc + optional right-side control (switch, chevron, text).
-// Reused for automation switches, settings rows, notifications, and log entries.
+// list row
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

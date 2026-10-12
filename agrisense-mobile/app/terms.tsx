@@ -1,6 +1,4 @@
-// app/terms.tsx
-// Terms & Conditions + Privacy summary, opened from the link on the login screen.
-// This is a draft written for the project — have it reviewed before real-world deployment.
+// terms and conditions
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';

@@ -1,14 +1,10 @@
-// api/endpoints.ts
-// One typed function per backend route (see server/API_CONTRACT.md). Screens import
-// from here instead of calling api.get/post directly, so typos in a URL only need fixing once.
+// api endpoints
 import { api } from './client';
 
-// ---- Auth ----
+// auth
 export type AuthUser = { id: number; name: string; email: string; role: string; color: string; hasPin?: boolean };
 
-// Log in with a password or a PIN. The server answers either with a session (token + user) or,
-// when the device is new / the account was idle 3+ days, with requiresStepUp + a stepUpToken
-// to finish via verifyLoginStepUpOtp (a code has already been emailed).
+// login with password or pin
 export type LoginResult =
   | { requiresStepUp: false; token: string; user: AuthUser }
   | { requiresStepUp: true; stepUpToken: string };
@@ -22,15 +18,14 @@ export const requestPasswordOtp = (email: string) =>
 export const resetPassword = (email: string, otp: string, newPassword: string) =>
   api.post<{ message: string }>('/auth/forgot-password/reset', { email, otp, newPassword });
 
-// Login step-up OTP (new device, or no login for 3+ days): 6-digit code emailed via
-// Nodemailer, 10 min expiry. Verifying it returns the real session.
+// login otp
 export const resendLoginStepUpOtp = (stepUpToken: string) =>
   api.post<{ message: string }>('/auth/login/request-otp', { stepUpToken });
 
 export const verifyLoginStepUpOtp = (stepUpToken: string, otp: string) =>
   api.post<{ token: string; user: AuthUser }>('/auth/login/verify-otp', { stepUpToken, otp });
 
-// ---- Sensors ----
+// sensors
 export type SensorReading = {
   airTemp: number; airTempStatus: 'ok' | 'warn' | 'danger'; airTempLabel: string;
   airHumidity: number; airHumidityStatus: 'ok' | 'warn' | 'danger'; airHumidityLabel: string;
@@ -42,31 +37,30 @@ export type SensorReading = {
 
 export const getLatestSensorReading = () => api.get<SensorReading>('/sensors/latest');
 
-// ---- Switches ----
+// switches
 export type SwitchesState = { roof: boolean; valve: boolean; timer: boolean; notifications: boolean; skipRain: boolean };
 
 export const getSwitches = () => api.get<SwitchesState>('/switches');
 export const setSwitch = (key: keyof SwitchesState, value: boolean) =>
   api.patch<{ key: string; value: boolean }>(`/switches/${key}`, { value });
 
-// ---- Hardware link (ESP32) ----
+// esp32
 export type DeviceStatus = {
   online: boolean;
   lastSeen: string | null;
   valveOpen: boolean;
   valveSecondsLeft: number;
   valveReason: string | null;
-  // Latest raw analog readings (0-4095) — shown on Hardware Settings while calibrating.
+  // raw readings for calibration
   raw: { soil: number | null; water: number | null; rain: number | null };
 };
 
 export const getDeviceStatus = () => api.get<DeviceStatus>('/device/status');
-// Timed watering run on the server; omit liters to use the saved override amount.
+// water now
 export const runValve = (liters?: number) => api.post<{ liters: number; seconds: number }>('/valve/run', liters ? { liters } : {});
 export const stopValve = () => api.post<{ valveOpen: boolean }>('/valve/stop');
 
-// Everything the hardware follows that isn't a limit or the schedule: sensor calibration,
-// tank minimum, rain threshold, roof rules + servo angles, reading interval.
+// hardware settings
 export type HardwareSettings = {
   soilDryRaw: number;
   soilWetRaw: number;
@@ -88,7 +82,7 @@ export const getHardwareSettings = () => api.get<HardwareSettings>('/hardware-se
 export const updateHardwareSettings = (updates: Partial<HardwareSettings>) =>
   api.patch<HardwareSettings>('/hardware-settings', updates);
 
-// ---- Logs ----
+// logs
 export type LogType =
   | 'temp-humidity' | 'soil' | 'valve' | 'roof' | 'lifecycle'
   | 'sensor-heatIndex' | 'sensor-soilMoisture' | 'sensor-airTemp' | 'sensor-waterLevel';
@@ -98,15 +92,15 @@ export const getLogs = (type: LogType) => api.get<Record<string, string>[]>(`/lo
 export const createLifecycleLog = (action: string, statusType: 'ok' | 'warn' | 'danger') =>
   api.post<{ time: string; action: string; statusType: string }>('/logs/lifecycle', { action, statusType });
 
-// ---- Users / Profile ----
+// users
 export const updateMe = (updates: Partial<{ name: string; email: string; password: string; role: string; color: string }>) =>
   api.patch<AuthUser>('/users/me', updates);
 
-// Quick-login PIN (4-6 digits). Both need the current password.
+// pin
 export const setPin = (pin: string, password: string) => api.put<AuthUser>('/users/me/pin', { pin, password });
 export const removePin = (password: string) => api.post<AuthUser>('/users/me/pin/remove', { password });
 
-// ---- Admin user management ----
+// admin
 export type AdminUserRecord = {
   id: number;
   name: string;
@@ -127,7 +121,7 @@ export const updateUser = (id: number, updates: Partial<{ name: string; email: s
 
 export const deleteUser = (id: number) => api.delete<{ message: string }>(`/users/${id}`);
 
-// ---- Lettuce health / heat-stress ML ----
+// health logs and heat stress
 export type HealthLogRecord = {
   id: number;
   user_id: number;
@@ -158,9 +152,7 @@ export type HeatStressPrediction =
 
 export const getHeatStressPrediction = () => api.get<HeatStressPrediction>('/ml/heat-stress');
 
-// ---- Farm settings/state (lifecycle, automation limits, watering schedule, calibration,
-// notifications) — farm-wide, not per-user, persisted server-side so they survive an app
-// restart or a second device logging in. ----
+// farm settings
 
 export const getLifecycle = () => api.get<{ ageDays: number; updatedAt: string }>('/lifecycle');
 export const updateLifecycle = (ageDays: number) => api.patch<{ ageDays: number; updatedAt: string }>('/lifecycle', { ageDays });

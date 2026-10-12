@@ -1,7 +1,4 @@
-// components/ui/Button.tsx
-// One button component for the whole app. Variants: primary / outline / danger.
-// Primary renders an actual dark-green gradient background (expo-linear-gradient); outline
-// and danger stay flat since they're a border/solid-color treatment, not a filled surface.
+// button (primary, outline, danger)
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';

@@ -1,6 +1,4 @@
-// api/deviceId.ts
-// A random id generated once per app install and kept in AsyncStorage. The server uses it to
-// tell whether a login comes from a device this account has already verified.
+// device id for otp check
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEY = 'agrisense.deviceId';
@@ -20,7 +18,7 @@ export async function getDeviceId(): Promise<string> {
     await AsyncStorage.setItem(KEY, fresh);
     return (cached = fresh);
   } catch {
-    // Storage unavailable: fall back to a per-launch id, which just means an OTP each launch.
+    // fallback if storage fails
     return (cached = randomId());
   }
 }

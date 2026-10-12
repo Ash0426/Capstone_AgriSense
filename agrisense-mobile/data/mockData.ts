@@ -1,8 +1,4 @@
-// data/mockData.ts
-// App-wide vocabulary/config shared by multiple screens: lifecycle stages, health-rating
-// options, sensor metadata, and the weekly weather mock (heatIndex is still a mock value here
-// too, pending a weather API key — see FarmDataContext). Everything else that used to be
-// seed data here now lives in the real database — see server/routes/farm.js.
+// shared data and sample weather
 
 export type LettuceStage = 'seedling' | 'thinning' | 'soil-planting' | 'mature';
 
@@ -20,9 +16,7 @@ export const stageDays: Record<LettuceStage, string> = {
   mature: 'Days 46-60',
 };
 
-// Stage always follows the plant's age — Days 1-15 Seedling, 16-30 Thinning, 31-45 Soil
-// Planting, 46+ Mature (harvest is around day 60). There is no manual stage picker; farmers
-// only ever edit the age.
+// stage based on age
 export function stageForAge(ageDays: number): LettuceStage {
   const age = Math.max(1, Math.round(ageDays));
   if (age <= 15) return 'seedling';
@@ -31,7 +25,7 @@ export function stageForAge(ageDays: number): LettuceStage {
   return 'mature';
 }
 
-// Exact wording from the product spec — data-log health rating options, worst to best.
+// health ratings
 export const healthRatingOptions = [
   'Dried out',
   'Drooping',
@@ -40,8 +34,7 @@ export const healthRatingOptions = [
   'Vibrant green / firm and upright',
 ];
 
-// One distinct color per rating (worst→best, red→deep green) — used by the Health Calendar to
-// color-code each logged day at a glance.
+// calendar colors
 export const healthRatingColors: Record<string, string> = {
   'Dried out': '#dc2626',
   'Drooping': '#f97316',
@@ -50,12 +43,11 @@ export const healthRatingColors: Record<string, string> = {
   'Vibrant green / firm and upright': '#15803d',
 };
 
-export const mockHeatIndex = 31; // °C — TODO: proxy a weather API (e.g. OpenWeather) server-side
+export const mockHeatIndex = 31;
 
 export type SensorKey = 'heatIndex' | 'soilMoisture' | 'airTemp' | 'waterLevel';
 
-// changeThreshold: how much a reading has to move between polls to count as a "major shift"
-// worth writing to that sensor's data log.
+// sensor info
 export const sensorMeta: Record<SensorKey, { label: string; unit: string; changeThreshold: number }> = {
   heatIndex: { label: 'Daily Heat Index', unit: '°C', changeThreshold: 2 },
   soilMoisture: { label: 'Soil Moisture', unit: '%', changeThreshold: 5 },
@@ -86,6 +78,5 @@ export const weeklyWeatherMock: {
   { day: 'Sun', date: 'Aug 23', condition: 'cloudy', high: 28, low: 22, rainChance: 30 },
 ];
 
-// Per-day watering plan — independent time + amount for each day of the week, editable from
-// the Weekly Weather page. Keyed by the same short day name used in weeklyWeatherMock.
+// watering per day
 export type DayWatering = { time: string; amountLiters: number };

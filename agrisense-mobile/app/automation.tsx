@@ -1,8 +1,4 @@
-// app/automation.tsx
-// Water Automation — watering is driven automatically by the weekly weather forecast, but
-// runs immediately regardless of the forecast if the soil-moisture or temperature limits
-// below are exceeded (see the auto-watering effect in context/FarmDataContext.tsx). Also
-// hosts the Auto Roof toggle, which doubles as a manual open/close override.
+// water automation screen
 import React, { useState } from 'react';
 import { router } from 'expo-router';
 import { View, Text, TextInput, StyleSheet, ScrollView, Alert } from 'react-native';
@@ -40,8 +36,7 @@ export default function AutomationScreen() {
   const [tempLimitInput, setTempLimitInput] = useState(String(automationLimits.tempLimit));
   const [overrideAmountInput, setOverrideAmountInput] = useState(String(automationLimits.overrideAmountLiters));
 
-  // The limits load from the server after this screen may already be open — keep the boxes in
-  // step with the saved values (otherwise they'd keep showing the 40% / 32°C defaults).
+  // sync inputs with saved limits
   const [shownLimits, setShownLimits] = useState(automationLimits);
   if (shownLimits !== automationLimits) {
     setShownLimits(automationLimits);

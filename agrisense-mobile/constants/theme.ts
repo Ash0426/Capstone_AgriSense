@@ -1,22 +1,20 @@
-// constants/theme.ts
-// Central design tokens — mirrors style.css so the app matches the web dashboard.
-// Edit colors here and they update everywhere in the app.
+// app colors
 
 export const colors = {
-  // Brand / sidebar
+  // brand
   sidebarBg: '#1a3d2e',
   brandIcon: '#6ee7b7',
   mint: '#78b63b',
   mintHover: '#5c9c2d',
   mintGradient: ['#78b63b', '#5c9c2d'] as const,
 
-  // Surfaces
+  // backgrounds
   background: '#f5f5f4',
   card: '#ffffff',
   border: '#e7e5e4',
   divider: '#f5f5f4',
 
-  // Text
+  // text
   textPrimary: '#1c1917',
   textSecondary: '#78716c',
   textMuted: '#a8a29e',
@@ -24,7 +22,7 @@ export const colors = {
   textDarkGreen: '#1f4d1a',
   white: '#ffffff',
 
-  // Status badges
+  // badges
   okBg: '#d1fae5',
   okText: '#065f46',
   warnBg: '#fef3c7',
@@ -32,7 +30,7 @@ export const colors = {
   dangerBg: '#fee2e2',
   dangerText: '#dc2626',
 
-  // Icon chips
+  // icons
   iconBgGreen: '#d1fae5',
   iconBgBlue: '#dbeafe',
   iconBgAmber: '#fef3c7',
@@ -40,14 +38,13 @@ export const colors = {
   iconBlue: '#1e40af',
   iconAmber: '#92400e',
 
-  // Live Sensor Readings card tints — a distinct hue per sensor so the 4 cards read apart
-  // at a glance instead of blending into one green block.
-  metricTintHeat: '#fef1cd', // amber, matches the sun icon
-  metricTintSoil: '#dcefc9', // green, matches the leaf icon
-  metricTintTemp: '#fbdcd2', // coral, matches the thermometer icon
-  metricTintWater: '#dbeafe', // blue, matches the water-drop icon
+  // sensor card colors
+  metricTintHeat: '#fef1cd',
+  metricTintSoil: '#dcefc9',
+  metricTintTemp: '#fbdcd2',
+  metricTintWater: '#dbeafe',
 
-  // Dots
+  // dots
   dotRed: '#ef4444',
   dotEmerald: '#34d399',
   dotBlue: '#60a5fa',

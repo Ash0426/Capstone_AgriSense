@@ -1,7 +1,4 @@
-// app/system-logs.tsx
-// Historical logs: temp/humidity, soil moisture, and watering come from the real
-// GET /api/logs/:type endpoint. Lifecycle events (stage changes + health ratings) come from
-// FarmDataContext, since there's no backend table for those yet.
+// system logs
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';

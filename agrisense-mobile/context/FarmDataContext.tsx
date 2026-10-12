@@ -1,10 +1,4 @@
-// context/FarmDataContext.tsx
-// Shared farm state: lettuce lifecycle, live sensor reading, water automation limits,
-// notifications, and logs — all in one place so screens can read/react to the same data
-// (e.g. saving the lifecycle age or crossing an automation limit pushes a notification
-// AND a log entry at the same time). Everything here is now backed by the real server
-// (farm.js, logs.js, sensors.js) so it survives an app restart — the only remaining mock is
-// heatIndex, pending a weather API key.
+// shared farm data
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import {
@@ -107,17 +101,15 @@ type FarmDataContextValue = {
   switches: SwitchesState | null;
   setRoof: (value: boolean) => Promise<void>;
 
-  // ESP32 link: online/offline + current valve run. waterNow/stopWatering throw on failure
-  // (e.g. 409 if a run is already going) so the screen can show the message.
+  // esp32 status and valve
   deviceStatus: DeviceStatus | null;
   waterNow: (liters?: number) => Promise<void>;
   stopWatering: () => Promise<void>;
 
-  // Farmer-set rules the hardware follows (calibration, tank minimum, rain, roof, servo angles).
-  // saveHardwareSettings throws with the server's message if a value is invalid.
+  // hardware settings
   hardwareSettings: HardwareSettings | null;
   saveHardwareSettings: (updates: Partial<HardwareSettings>) => Promise<void>;
-  // Schedule on/off ('timer') and skip-when-raining ('skipRain') switches.
+  // schedule and skip rain switches
   setSwitchValue: (key: 'timer' | 'skipRain', value: boolean) => Promise<void>;
 
   notifications: NotificationItem[];
@@ -173,8 +165,7 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
 
   const addNotification = useCallback(
     (category: NotificationCategory, icon: string, iconBg: 'green' | 'blue' | 'amber', title: string, desc: string) => {
-      // Optimistic local entry so the UI updates instantly; persists in the background so it
-      // survives a restart and shows up for any other device logged into the same farm.
+      // show right away then save
       setNotifications((prev) => [
         { id: -Date.now(), category, icon, iconBg, title, desc, time: 'Just now' },
         ...prev,
@@ -255,7 +246,7 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
     updateCalibration(key, value).catch((err) => console.warn('Failed to persist calibration:', err));
   }, []);
 
-  // Moving the roof by hand switches roof control to Manual on the server.
+  // manual roof
   const setRoof = useCallback(async (value: boolean) => {
     await setSwitch('roof', value);
     setSwitches((prev) => (prev ? { ...prev, roof: value } : prev));
@@ -276,9 +267,7 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
     setHardwareSettings(await updateHardwareSettings(updates));
   }, []);
 
-  // This week's plan = exactly what the server will run: each day's time + amount from the
-  // Weekly Weather screen, if the schedule switch is on. (Rain skipping is decided live by the
-  // rain sensor at watering time, not by the sample forecast.)
+  // this week's watering plan
   const predictedWatering = useMemo(
     () =>
       weeklyWeatherMock.map((w) => {
@@ -303,9 +292,7 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
     setDeviceStatus(await getDeviceStatus());
   }, []);
 
-  // Poll the server for the latest reading, switches and ESP32 status. Limit-triggered
-  // watering now runs on the SERVER (routes/sensors.js) when the ESP32 posts a reading, so it
-  // works with the app closed and can't be triggered twice by two open phones.
+  // poll server
   useEffect(() => {
     if (!isLoggedIn) return;
 
@@ -313,8 +300,6 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
 
     const tick = async () => {
       try {
-        // Tank-low, limit, schedule and roof notifications are all created by the server now,
-        // so the notification list is simply re-fetched here.
         const [r, s, d, n] = await Promise.all([getLatestSensorReading(), getSwitches(), getDeviceStatus(), getNotifications()]);
         if (cancelled) return;
 
@@ -335,8 +320,7 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isLoggedIn]);
 
-  // Heat-stress prediction: fetch on login, then on a slow cadence — retraining every 30s
-  // like the sensor poll would be wasteful even though each request is individually cheap.
+  // heat stress prediction
   useEffect(() => {
     if (!isLoggedIn) return;
     refreshHeatStress();
@@ -376,8 +360,7 @@ export function FarmDataProvider({ children }: { children: React.ReactNode }) {
     [refreshUsers]
   );
 
-  // One-time hydration on login: pull every farm-wide setting from the server so nothing
-  // resets to a default on a fresh app open or a second device logging in.
+  // load settings on login
   useEffect(() => {
     if (!isLoggedIn) return;
 

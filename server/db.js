@@ -1,7 +1,4 @@
-// server/db.js
-// Opens (and creates, if missing) agrisense.db, then makes sure every table exists.
-// This runs once when the server starts — it's the "database initialization" step,
-// so it must run before any route tries to query a table.
+// database setup
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 const path = require('path');
@@ -169,39 +166,32 @@ function addColumnIfMissing(table, column, definition) {
 addColumnIfMissing('device_status', 'soil_raw', 'INTEGER');
 addColumnIfMissing('device_status', 'water_raw', 'INTEGER');
 addColumnIfMissing('device_status', 'rain_raw', 'INTEGER');
-// Which date each weekday's scheduled watering last ran — so it runs once per day, not every minute.
+// so the schedule only runs once a day
 addColumnIfMissing('watering_schedule', 'last_run_date', 'TEXT');
 
-// Add the "water_level" column to an already-existing sensor_readings table — nullable since
-// hardware may not report it yet; /sensors/latest falls back to the last known value.
+// add new columns to old tables
 const sensorColumns = db.prepare('PRAGMA table_info(sensor_readings)').all();
 if (!sensorColumns.some((c) => c.name === 'water_level')) {
   db.exec('ALTER TABLE sensor_readings ADD COLUMN water_level REAL');
 }
 
-// An older "notifications" table (pre-dating the category-aware one above) may already exist
-// from before — CREATE TABLE IF NOT EXISTS is a no-op against it, so add the missing column
-// directly and clear its stale rows (icon/title copy that doesn't match today's 5 categories).
 const notificationColumns = db.prepare('PRAGMA table_info(notifications)').all();
 if (!notificationColumns.some((c) => c.name === 'category')) {
   db.exec("ALTER TABLE notifications ADD COLUMN category TEXT NOT NULL DEFAULT 'daily-status'");
   db.exec('DELETE FROM notifications');
 }
 
-// Add the "disabled" column to an already-existing users table (CREATE TABLE IF NOT EXISTS
-// above won't add columns to a table that already exists from before this change).
 const userColumns = db.prepare('PRAGMA table_info(users)').all();
 if (!userColumns.some((c) => c.name === 'disabled')) {
   db.exec('ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0');
 }
 
-// Quick-login PIN (bcrypt hash), failed-PIN counter, and when the account last logged in.
+// pin login
 addColumnIfMissing('users', 'pin_hash', 'TEXT');
 addColumnIfMissing('users', 'pin_attempts', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('users', 'last_login_at', 'TEXT');
 
-// Devices an account has already verified on. A login from an unknown device, or after 3+ days
-// without any login, needs an emailed OTP (see routes/auth.js).
+// trusted devices for otp
 db.exec(`
   CREATE TABLE IF NOT EXISTS user_devices (
     user_id INTEGER NOT NULL,
@@ -212,10 +202,9 @@ db.exec(`
   );
 `);
 
-// Optional farmer note saved with each lettuce health rating.
 addColumnIfMissing('health_logs', 'note', 'TEXT');
 
-// Seed default switches if empty (first run only)
+// default switches
 const switchDefaults = { roof: 1, valve: 0, timer: 1, notifications: 1, skipRain: 1 };
 const insertSwitch = db.prepare('INSERT OR IGNORE INTO switches (key, value) VALUES (?, ?)');
 for (const [key, value] of Object.entries(switchDefaults)) insertSwitch.run(key, value);
@@ -246,7 +235,7 @@ const calibrationDefaults = {
 const insertCalibration = db.prepare('INSERT OR IGNORE INTO sensor_calibration (sensor_key, min, max) VALUES (?, ?, ?)');
 for (const [key, { min, max }] of Object.entries(calibrationDefaults)) insertCalibration.run(key, min, max);
 
-// Seed one sensor reading + a demo user so the app has something to show on first run
+// sample data for first run
 const readingCount = db.prepare('SELECT COUNT(*) AS c FROM sensor_readings').get().c;
 if (readingCount === 0) {
   db.prepare(
@@ -263,8 +252,6 @@ if (userCount === 0) {
   console.log('Seeded demo user -> email: trinove.corp@gmail.com  password: password123');
 }
 
-// Seed a few demo log rows so the History screen isn't empty before any real ESP32
-// readings come in. Safe to delete these rows any time.
 const logCount = db.prepare('SELECT COUNT(*) AS c FROM logs').get().c;
 if (logCount === 0) {
   const insertLog = db.prepare('INSERT INTO logs (type, payload) VALUES (?, ?)');

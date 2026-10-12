@@ -1,12 +1,4 @@
-// server/routes/device.js
-// Hardware <-> server link.
-//
-//   GET   /api/device/commands     (ESP32, X-Device-Key)  what the valve and roof servo should do now
-//   GET   /api/device/status       (app, JWT)             online? watering? latest raw sensor values
-//   GET   /api/hardware-settings   (app, JWT)             farmer-set calibration + rules
-//   PATCH /api/hardware-settings   (app, JWT)             change any of them
-//   POST  /api/valve/run           (app, JWT)             "Water now" — timed run of N litres
-//   POST  /api/valve/stop          (app, JWT)             stop watering immediately
+// device and valve routes
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
@@ -16,9 +8,9 @@ const { getSettings, updateSettings } = require('../lib/settings');
 
 const router = express.Router();
 
-const OFFLINE_AFTER_MS = 30 * 1000; // board polls every ~2s, so 30s of silence = offline
+const OFFLINE_AFTER_MS = 30 * 1000;
 
-// ESP32 polls this every 2 s. It only moves the servo when roofAngle CHANGES.
+// esp32 polls this
 router.get('/device/commands', requireDevice, (req, res) => {
   const state = valve.getState();
   const s = getSettings();

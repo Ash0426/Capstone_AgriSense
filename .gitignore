@@ -12,3 +12,6 @@ node_modules/
 
 # Arduino build output
 firmware/**/build/
+
+# Expo local files
+.expo/

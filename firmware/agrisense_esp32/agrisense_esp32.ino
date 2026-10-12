@@ -4,51 +4,43 @@
 #include <ESP32Servo.h>
 #include <ESPmDNS.h>
 #include <WiFiMulti.h>
-#include <WiFiManager.h>     // Library Manager: "WiFiManager" by tzapu
+#include <WiFiManager.h>     // WiFiManager by tzapu
 #include <Preferences.h>
 
-// ============ 1. EDIT THESE (same values you used before) ===============================
-// Optional pre-set networks (2.4 GHz). Any other network can be added from your phone, see README.
+// wifi networks (2.4GHz only)
 struct WifiCred { const char* ssid; const char* pass; };
 const WifiCred WIFI_NETWORKS[] = {
   { "TECNO SPARK 10 Pro", "mabagalnanga" },
   { "TP-Link_AC4C", "bismillah3" },
   // { "School WiFi",      "password" },
 };
-// Laptop's Windows computer name (PowerShell: $env:COMPUTERNAME). The ESP32 finds its current
-// IP by name over mDNS, so you no longer edit an IP when the Wi-Fi changes.
+// laptop hostname, found using mDNS
 const char* SERVER_HOST   = "LAPTOP-MI4PEUQO";
 const int   SERVER_PORT   = 4000;
 const char* DEVICE_KEY   = "6e437ac9914ff3fe4a0b3a5cd74e5b7fdb9d28aa09b3e351";
 
-// ============ 2. PINS (only change if your wiring is different) =========================
+// pins
 #define SERVO_PIN 13       
 #define VALVE_PIN 26
-// Relay modules are often "active LOW" (the relay clicks ON when the pin is LOW).
-// If the valve opens at boot or behaves backwards, change this to 0.
+// set to 0 if relay is active low
 #define VALVE_ACTIVE_HIGH 1
 
-// Analog sensors MUST be on ADC1 pins (32, 33, 34, 35, 36, 39). ADC2 pins stop working
-// for analogRead() once WiFi is on.
+// use ADC1 pins only, ADC2 doesnt work with wifi on
 #define SOIL_PIN        34
-#define WATER_LEVEL_PIN 35   // -1 if you don't have a tank level sensor wired
-#define RAIN_PIN        -1   // ADC1 pin (e.g. 32) if your 2nd water sensor is a rain sensor
+#define WATER_LEVEL_PIN 35   // -1 if not used
+#define RAIN_PIN        -1   // -1 if not used
 
-// Temperature sensor type: 0 = none, 1 = DHT11, 2 = DHT22, 3 = DS18B20
+// 0 = none, 1 = DHT11, 2 = DHT22, 3 = DS18B20
 #define TEMP_SENSOR 0
-#define TEMP_PIN    4        // data pin for the DHT / DS18B20
+#define TEMP_PIN    4
 
-// Calibration, limits, schedule, roof rules and servo angles are ALL set in the app now
-// (Automation -> Hardware Settings). Nothing else to edit here.
-
-// ============ timings ==================================================================
+// timings
 const unsigned long POLL_MS        = 2000;
-const unsigned long FAILSAFE_MS    = 15000; // no good poll for this long -> close valve
-const unsigned long GRACE_MS       = 3000;  // extra time allowed past the server's run length
-const unsigned long SERVO_MOVE_MS  = 800;   // time the servo gets to reach its angle before the signal is cut
-unsigned long sensorIntervalMs     = 30000; // replaced by the value set in the app
+const unsigned long FAILSAFE_MS    = 15000; // close valve if server is lost
+const unsigned long GRACE_MS       = 3000;
+const unsigned long SERVO_MOVE_MS  = 800;
+unsigned long sensorIntervalMs     = 30000; // updated from the app
 
-// =======================================================================================
 #if TEMP_SENSOR == 1 || TEMP_SENSOR == 2
   #include <DHT.h>
   DHT dht(TEMP_PIN, TEMP_SENSOR == 1 ? DHT11 : DHT22);
@@ -62,9 +54,9 @@ unsigned long sensorIntervalMs     = 30000; // replaced by the value set in the 
 Servo roofServo;
 
 bool valveOpen = false;
-int  servoAngle = -1;             // last angle we moved to (-1 = not moved yet since boot)
+int  servoAngle = -1;
 unsigned long lastGoodPoll = 0;
-unsigned long valveDeadline = 0;  // millis() by which the valve must be closed
+unsigned long valveDeadline = 0;
 unsigned long lastPoll = 0, lastSensor = 0;
 bool sentFirstReading = false;
 
@@ -75,8 +67,7 @@ void setValve(bool open) {
   Serial.printf("[valve] %s\n", open ? "OPEN" : "CLOSED");
 }
 
-// Move ONLY when the angle changes. Attach -> move -> wait -> detach, so no signal is left
-// running on the pin (that's what made the servo keep buzzing/turning).
+// detach after moving so the servo doesnt keep buzzing
 void moveServo(int angle) {
   angle = constrain(angle, 0, 180);
   if (angle == servoAngle) return;
@@ -86,7 +77,7 @@ void moveServo(int angle) {
   delay(SERVO_MOVE_MS);
   roofServo.detach();
   pinMode(SERVO_PIN, OUTPUT);
-  digitalWrite(SERVO_PIN, LOW);   // hold the signal line quiet
+  digitalWrite(SERVO_PIN, LOW);
 
   Serial.printf("[servo] moved %d -> %d deg\n", servoAngle, angle);
   servoAngle = angle;
@@ -98,7 +89,7 @@ int readAvg(int pin) {
   return sum / 10;
 }
 
-String serverUrl = "";   // http://<ip>:4000, filled in by resolveServer()
+String serverUrl = "";
 unsigned long lastResolve = 0;
 
 bool resolveServer() {
@@ -121,9 +112,9 @@ bool portalOn = false;
 unsigned long portalStart = 0;
 int wifiFailures = 0;
 const int  MAX_SAVED = 8;
-const unsigned long PORTAL_MS = 180000;   // setup page stays open this long, then known networks are retried
+const unsigned long PORTAL_MS = 180000;
 
-// Networks entered through the setup page are remembered across reboots.
+// save networks added from the setup page
 void saveNetwork(const String& ssid, const String& pass) {
   int n = wifiPrefs.getUChar("n", 0);
   for (int i = 0; i < n; i++) {
@@ -153,12 +144,11 @@ void loadNetworks() {
 void onWifiConnected() {
   Serial.printf("[wifi] connected to %s, ESP32 IP %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
   MDNS.begin("agrisense-esp32");
-  serverUrl = "";   // network may have changed, look the laptop up again
+  serverUrl = "";
   wifiFailures = 0;
 }
 
-// Called from loop() while Wi-Fi is down or the setup page is open. Never blocks for long,
-// so the valve failsafe in loop() keeps running.
+// non blocking so the failsafe still runs
 void connectWiFi() {
   if (!wifiListLoaded) loadNetworks();
 
@@ -206,7 +196,7 @@ void pollCommands() {
   if (code == 200) {
     JsonDocument doc;
     if (!deserializeJson(doc, http.getString())) {
-      // Valve
+      // valve
       bool wantOpen = doc["valveOpen"] | false;
       int secondsLeft = doc["valveSecondsLeft"] | 0;
       if (wantOpen && secondsLeft > 0) {
@@ -216,10 +206,10 @@ void pollCommands() {
         setValve(false);
       }
 
-      // Servo — angle set in the app
+      // roof servo
       if (!doc["roofAngle"].isNull()) moveServo(doc["roofAngle"].as<int>());
 
-      // How often to send readings — set in the app
+      // sensor interval
       int intervalSec = doc["sensorIntervalSec"] | 30;
       sensorIntervalMs = (unsigned long)constrain(intervalSec, 5, 3600) * 1000UL;
 
@@ -227,7 +217,7 @@ void pollCommands() {
     }
   } else {
     Serial.printf("[poll] HTTP %d %s\n", code, code == 401 ? "(DEVICE_KEY doesn't match server/.env)" : "");
-    if (code < 0) serverUrl = "";   // unreachable, look the laptop up again
+    if (code < 0) serverUrl = "";
   }
   http.end();
 }
@@ -235,7 +225,7 @@ void pollCommands() {
 void sendReadings() {
   JsonDocument doc;
 
-  // Raw values (0-4095). The server converts them to % with the calibration from the app.
+  // raw values, server converts to %
   doc["soilRaw"] = readAvg(SOIL_PIN);
   if (WATER_LEVEL_PIN >= 0) doc["waterRaw"] = readAvg(WATER_LEVEL_PIN);
   if (RAIN_PIN >= 0) doc["rainRaw"] = readAvg(RAIN_PIN);
@@ -259,17 +249,15 @@ void sendReadings() {
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-Device-Key", DEVICE_KEY);
   int code = http.POST(body);
-  // The reply includes the % values the server worked out, so you can see them here too.
   Serial.printf("[sensor] sent %s -> HTTP %d %s\n", body.c_str(), code, code == 201 ? http.getString().c_str() : "");
   http.end();
 }
 
 void setup() {
-  // Valve closed before anything else happens.
+  // keep valve closed on boot
   pinMode(VALVE_PIN, OUTPUT);
   digitalWrite(VALVE_PIN, VALVE_ACTIVE_HIGH ? LOW : HIGH);
 
-  // Servo signal quiet until the app says where it should be.
   pinMode(SERVO_PIN, OUTPUT);
   digitalWrite(SERVO_PIN, LOW);
 
@@ -290,7 +278,7 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  // --- safety: runs every loop, even with WiFi down ---
+  // failsafe
   if (valveOpen && (now - lastGoodPoll > FAILSAFE_MS || (long)(now - valveDeadline) > 0)) {
     Serial.println("[safety] closing valve (lost server or run overdue)");
     setValve(false);

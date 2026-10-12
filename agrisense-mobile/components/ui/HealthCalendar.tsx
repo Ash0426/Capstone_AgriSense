@@ -1,7 +1,4 @@
-// components/ui/HealthCalendar.tsx
-// Month-grid calendar for Lettuce Health — one entry per day, color-coded by rating (see
-// healthRatingColors in data/mockData.ts). Every day is tappable; a modal shows that day's
-// status (or "No rating logged" if nothing was recorded). Self-built, no calendar library.
+// health calendar
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

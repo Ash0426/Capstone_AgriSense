@@ -1,5 +1,4 @@
-// Starts Expo on the laptop's real Wi-Fi/Ethernet IP, ignoring virtual adapters (VMware, Hyper-V,
-// WSL, Docker, VirtualBox) that otherwise get advertised to Expo Go and can't be reached by the phone.
+// start expo using the wifi ip
 const os = require('os');
 const { spawn } = require('child_process');
 

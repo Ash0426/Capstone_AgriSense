@@ -1,7 +1,4 @@
-// api/client.ts
-// One place that knows how to talk to the server. Every screen calls functions from
-// here (or from the other files in this folder) instead of writing fetch() directly —
-// so if the API contract changes, you only fix it in one place.
+// api helper
 import { API_BASE_URL } from '../config';
 
 let authToken: string | null = null;
@@ -33,7 +30,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   try {
     res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
   } catch (err) {
-    // Usually means the phone can't reach the server — wrong IP, different Wi-Fi, or server not running.
+    // server unreachable
     throw new ApiError(0, 'Could not reach the server. Check that it is running and config.js has the right IP.');
   }
 

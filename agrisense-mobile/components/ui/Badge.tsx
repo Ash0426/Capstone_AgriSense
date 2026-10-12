@@ -1,5 +1,4 @@
-// components/ui/Badge.tsx
-// Small status pill used for "Too Hot", "Normal", "Dry" etc. Edit colors in one place here.
+// status badge
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, radius } from '../../constants/theme';

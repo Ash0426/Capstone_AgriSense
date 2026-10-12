@@ -1,6 +1,4 @@
-// app/(tabs)/notification.tsx
-// Notification tab — newest first. Exactly 5 categories, all pushed live from
-// FarmDataContext: crop watered, tank low, limit exceeded, daily crop status, lifecycle change.
+// notifications tab
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { colors, spacing } from '../../constants/theme';

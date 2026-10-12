@@ -1,4 +1,3 @@
-// server/routes/users.js
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
@@ -10,7 +9,7 @@ function publicUser(u) {
   return { id: u.id, name: u.name, email: u.email, role: u.role, color: u.color, hasPin: !!u.pin_hash };
 }
 
-// Full record shown in the admin Users list — includes the hashed password, on purpose.
+// user info for admin list
 function adminUser(u) {
   return {
     id: u.id,
@@ -52,7 +51,7 @@ router.patch('/me', requireAuth, (req, res) => {
   res.json(publicUser(updated));
 });
 
-// PUT /api/users/me/pin  — set or change the quick-login PIN (4-6 digits). Needs the current password.
+// PUT /api/users/me/pin
 router.put('/me/pin', requireAuth, (req, res) => {
   const { pin, password } = req.body;
   if (!/^\d{4,6}$/.test(pin || '')) return res.status(400).json({ error: 'PIN must be 4 to 6 digits' });
@@ -68,7 +67,7 @@ router.put('/me/pin', requireAuth, (req, res) => {
   res.json(publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)));
 });
 
-// POST /api/users/me/pin/remove  — turn the PIN off. Needs the current password.
+// POST /api/users/me/pin/remove
 router.post('/me/pin/remove', requireAuth, (req, res) => {
   const { password } = req.body || {};
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId);
@@ -95,7 +94,7 @@ router.get('/me/activity', requireAuth, (req, res) => {
   );
 });
 
-// ---- Admin-only user management ----
+// admin only
 
 // GET /api/users  (admin)
 router.get('/', requireAuth, requireAdmin, (req, res) => {
@@ -156,8 +155,7 @@ router.delete('/:id', requireAuth, requireAdmin, (req, res) => {
   const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
   if (!target) return res.status(404).json({ error: 'User not found' });
 
-  // user_activity/health_logs reference this user via a foreign key — clear the target's
-  // own rows first (their audit trail goes with them) so the delete itself doesn't fail.
+  // delete related rows first
   const deleteUser = db.transaction(() => {
     db.prepare('DELETE FROM user_activity WHERE user_id = ?').run(targetId);
     db.prepare('DELETE FROM health_logs WHERE user_id = ?').run(targetId);

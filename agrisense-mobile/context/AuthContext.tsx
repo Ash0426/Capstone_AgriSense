@@ -1,11 +1,4 @@
-// context/AuthContext.tsx
-// Holds who's logged in + the auth token, and shares it with every screen via useAuth().
-// The session itself only lives in memory, so closing the app fully logs the user out again.
-//
-// Whether a login needs an emailed OTP is decided by the server: it asks for one when this
-// device hasn't been verified for the account before, or the account hasn't logged in for 3+
-// days. login() returns { requiresStepUp: true } in that case; the screen then calls
-// verifyStepUp(code) to finish. A PIN can be used in place of the password (see login()).
+// logged in user and token
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { setAuthToken } from '../api/client';
 import { getDeviceId } from '../api/deviceId';

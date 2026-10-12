@@ -1,5 +1,4 @@
-// server/utils/mailer.js
-// Sends the OTP email. Uses the SMTP_* values from .env — see .env.example for setup notes.
+// otp email
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({

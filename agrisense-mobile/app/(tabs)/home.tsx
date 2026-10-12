@@ -1,9 +1,4 @@
-// app/(tabs)/home.tsx
-// Dashboard: out-of-calibration alert banner → live sensor readings (tap any card for its
-// data log + calibration) → lettuce lifecycle banner (tap for the full lifecycle page) →
-// last watering → weekly weather + predicted watering. Sensor reading + all the cross-screen
-// state lives in FarmDataContext so calibration, automation limits, notifications, and logs
-// stay in sync with what's shown here.
+// home dashboard
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -54,7 +49,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Out-of-calibration alert banner */}
+        {/* calibration alert */}
         {outOfCalibration.length > 0 && (
           <View style={styles.alertBanner}>
             <Ionicons name="warning" size={18} color={colors.dangerText} />
@@ -70,7 +65,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Heat stress risk banner (Random Forest prediction, trained on real health-log data) */}
+        {/* heat stress */}
         {showHeatStressBanner && heatStress?.status === 'ok' && (
           <TouchableOpacity onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'heatIndex' } })}>
             <View style={[styles.alertBanner, heatStress.risk === 'moderate' && styles.alertBannerModerate]}>
@@ -84,7 +79,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Live sensor readings — tap any card for its data log + calibration */}
+        {/* sensor cards */}
         <Text style={styles.sectionLabel}>Live Sensor Readings</Text>
         <View style={styles.metricsGrid}>
           <TouchableOpacity style={styles.metricWrap} onPress={() => router.push({ pathname: '/sensor/[key]', params: { key: 'heatIndex' } })}>
@@ -137,7 +132,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Lettuce Lifecycle banner */}
+        {/* lifecycle */}
         <TouchableOpacity onPress={() => router.push('/lifecycle')}>
           <Card style={styles.section}>
             <View style={styles.bannerRow}>
@@ -153,7 +148,7 @@ export default function HomeScreen() {
           </Card>
         </TouchableOpacity>
 
-        {/* Last watering */}
+        {/* last watering */}
         <Card style={styles.section}>
           <View style={styles.lastWateringRow}>
             <Ionicons name="water-outline" size={20} color={colors.mint} />
@@ -164,7 +159,7 @@ export default function HomeScreen() {
           </View>
         </Card>
 
-        {/* Weekly weather + predicted watering — tap for the full forecast & suggestion */}
+        {/* weekly weather */}
         <TouchableOpacity onPress={() => router.push('/weekly-weather')}>
           <Card style={styles.section}>
             <PanelHeader
@@ -190,7 +185,7 @@ export default function HomeScreen() {
           </Card>
         </TouchableOpacity>
 
-        {/* Watering Automation banner */}
+        {/* automation */}
         <TouchableOpacity onPress={() => router.push('/automation')}>
           <Card style={styles.section}>
             <View style={styles.bannerRow}>

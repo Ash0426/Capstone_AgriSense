@@ -1,9 +1,4 @@
-// server/routes/sensors.js
-// GET  /api/sensors/latest  (app)    latest reading with Normal/Too Hot/Dry labels
-// POST /api/sensors         (ESP32)  new reading -> stored, then the farmer's automation rules run
-//
-// Status labels use the safe ranges the farmer set in the app (sensor_calibration), and raw
-// analog readings are turned into % using the calibration set on the Hardware Settings screen.
+// sensor readings
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
@@ -36,8 +31,7 @@ function rainStatus(v, s = getSettings()) {
   return v >= s.rainThreshold ? { status: 'ok', label: 'Raining' } : { status: 'ok', label: 'No Rain' };
 }
 
-// "Major shift" thresholds — how much a reading has to move between consecutive readings to
-// be worth writing to that sensor's data log (shown on its detail page in the app).
+// min change before logging
 const SHIFT_THRESHOLDS = { soilMoisture: 5, airTemp: 2, waterLevel: 5 };
 
 function logSensorShift(key, value) {
@@ -47,7 +41,7 @@ function logSensorShift(key, value) {
   db.prepare('INSERT INTO logs (type, payload) VALUES (?, ?)').run(`sensor-${key}`, JSON.stringify({ value, time, date }));
 }
 
-// SQLite's datetime('now') is UTC but has no "Z", so phones would read it as local time.
+// sqlite time is utc, add Z
 function sqliteUtcToIso(text) {
   return text ? `${text.replace(' ', 'T')}Z` : text;
 }
@@ -78,10 +72,7 @@ router.get('/latest', requireAuth, (req, res) => {
   });
 });
 
-// POST /api/sensors  (ESP32 — needs the X-Device-Key header)
-// The board sends RAW analog values (soilRaw, waterRaw, rainRaw: 0-4095) and/or ready values
-// (airTemp, airHumidity, soilMoisture, rain, waterLevel). Raw values are converted to % with
-// the farmer's calibration. Anything not sent carries over from the previous reading.
+// POST /api/sensors (from esp32)
 const PERCENT_FIELDS = { airTemp: 'air_temp', airHumidity: 'air_humidity', soilMoisture: 'soil_moisture', rain: 'rain', waterLevel: 'water_level' };
 const RAW_FIELDS = ['soilRaw', 'waterRaw', 'rainRaw'];
 
@@ -93,7 +84,7 @@ router.post('/', requireDevice, (req, res) => {
     }
   }
 
-  // Raw -> % using the calibration from the app, and remember the raw values for the calibration screen.
+  // convert raw to %
   const cal = getSettings();
   const measured = {};
   for (const k of Object.keys(PERCENT_FIELDS)) if (body[k] !== undefined) measured[k] = body[k];
@@ -129,7 +120,7 @@ router.post('/', requireDevice, (req, res) => {
     }
   }
 
-  // Also log temp/humidity + soil rows so the History tabs stay populated
+  // history logs
   const now = new Date();
   const time = now.toLocaleString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', ' ·');
   const t = tempStatus(airTemp);
@@ -143,8 +134,7 @@ router.post('/', requireDevice, (req, res) => {
     JSON.stringify({ time, moisture: `${soilMoisture}%`, status: s.label, statusType: s.status })
   );
 
-  // The farmer's rules: tank warning, roof auto, limit watering. Only values actually measured
-  // this time can trigger anything (a carried-over temperature never waters the plants).
+  // run automation
   automation.onReading({
     soilMoisture: measured.soilMoisture,
     airTemp: measured.airTemp,

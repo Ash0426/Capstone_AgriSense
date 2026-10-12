@@ -1,8 +1,4 @@
-// app/sensor/[key].tsx
-// Sensor detail page, opened by tapping a MetricCard on the Dashboard. Shows a data log of
-// "major shifts" in the reading (see the change-detection in FarmDataContext's polling tick)
-// and a calibration form — go out of the calibrated min/max range and the Dashboard shows an
-// alert banner for this sensor.
+// sensor details
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';

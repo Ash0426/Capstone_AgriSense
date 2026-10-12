@@ -1,7 +1,4 @@
-// server/middleware/device.js
-// requireDevice protects the routes the ESP32 calls. The board sends the shared secret from
-// DEVICE_API_KEY (server/.env) in an "X-Device-Key" header — the same value goes in the
-// sketch's DEVICE_KEY. Phones use JWT logins instead; this is only for the hardware.
+// checks the esp32 device key
 const crypto = require('crypto');
 const db = require('../db');
 
@@ -21,7 +18,7 @@ function requireDevice(req, res, next) {
   const key = req.headers['x-device-key'];
   if (!key || !safeEqual(key, expected)) return res.status(401).json({ error: 'Invalid device key' });
 
-  // Remember when the board last checked in so the app can show Online/Offline.
+  // last seen time
   db.prepare("UPDATE device_status SET last_seen = ?, ip = ? WHERE id = 1").run(new Date().toISOString(), req.ip);
   next();
 }

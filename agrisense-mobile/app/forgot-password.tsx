@@ -1,6 +1,4 @@
-// app/forgot-password.tsx
-// OTP-based password reset — matches the Nodemailer OTP flow already built on the backend.
-// Step 1: enter email, request code. Step 2: enter the 6-digit OTP + new password.
+// forgot password
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';

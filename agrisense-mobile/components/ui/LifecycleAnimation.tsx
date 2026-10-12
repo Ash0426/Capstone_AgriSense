@@ -1,8 +1,4 @@
-// components/ui/LifecycleAnimation.tsx
-// A small stage-specific animation for the lettuce lifecycle — Seedling/Thinning/Soil Planting/Mature — built
-// from Ionicons + React Native's built-in Animated API (loops of translate/scale/rotate/opacity,
-// all useNativeDriver: true). This is a stylized, icon-based representation, not illustrated
-// artwork — there's no Lottie/SVG asset pipeline in this project.
+// lifecycle stage animation
 import React, { useEffect, useRef } from 'react';
 import { View, Animated, Easing, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

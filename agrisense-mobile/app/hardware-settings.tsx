@@ -1,11 +1,4 @@
-// app/hardware-settings.tsx
-// Every value the ESP32 follows that isn't a watering limit or the weekly schedule:
-//   * Sensor calibration — the raw readings for 0% and 100%, with "Use current" buttons so
-//     you can calibrate by holding the sensor dry / in water. No re-uploading the sketch.
-//   * Tank minimum and rain threshold
-//   * Roof: Auto/Manual, when auto closes it, and the servo's open/closed angles
-//   * How often the board sends readings
-// All saved on the server (routes/device.js -> hardware_settings table).
+// hardware settings screen
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,7 +30,7 @@ export default function HardwareSettingsScreen() {
 function SettingsForm({ initial }: { initial: HardwareSettings }) {
   const { saveHardwareSettings, deviceStatus, reading, switches, setRoof } = useFarmData();
 
-  // Text inputs hold strings so the farmer can type freely; converted on Save.
+  // stored as strings until save
   const [form, setForm] = useState<Record<NumKey, string>>(() => {
     const out = {} as Record<NumKey, string>;
     (Object.keys(initial) as (keyof HardwareSettings)[]).forEach((k) => {
@@ -76,7 +69,7 @@ function SettingsForm({ initial }: { initial: HardwareSettings }) {
 
   return (
     <>
-      {/* ---------- Sensor calibration ---------- */}
+      {/* calibration */}
       <Card style={styles.section}>
         <PanelHeader title="Sensor Calibration" subtitle="Raw reading at 0% and at 100%" />
         <View style={styles.body}>
@@ -130,7 +123,7 @@ function SettingsForm({ initial }: { initial: HardwareSettings }) {
         </View>
       </Card>
 
-      {/* ---------- Tank + rain rules ---------- */}
+      {/* tank and rain */}
       <Card style={styles.section}>
         <PanelHeader title="Water & Rain Rules" />
         <View style={styles.body}>
@@ -160,7 +153,7 @@ function SettingsForm({ initial }: { initial: HardwareSettings }) {
         </View>
       </Card>
 
-      {/* ---------- Roof / servo ---------- */}
+      {/* roof */}
       <Card style={styles.section}>
         <PanelHeader title="Roof (Servo)" subtitle={switches ? (switches.roof ? 'Currently open' : 'Currently closed') : undefined} />
         <View style={styles.body}>

@@ -1,4 +1,3 @@
-// server/routes/auth.js
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -10,16 +9,15 @@ const router = express.Router();
 const STEP_UP_DAYS = 3;
 const MAX_PIN_ATTEMPTS = 5;
 const MAX_OTP_ATTEMPTS = 5;
-// Step-up tokens use a different secret so they can never be used as a normal session token.
+// separate secret for otp tokens
 const stepUpSecret = () => `${process.env.JWT_SECRET}:stepup`;
-const otpFailures = new Map(); // userId -> wrong-code count
+const otpFailures = new Map();
 
 function publicUser(u) {
   return { id: u.id, name: u.name, email: u.email, role: u.role, color: u.color, hasPin: !!u.pin_hash };
 }
 
-// A login needs an emailed OTP when the device is new to this account, or the account hasn't
-// logged in for STEP_UP_DAYS or more.
+// otp needed for new device or inactive account
 function needsStepUp(user, deviceId) {
   if (!deviceId) return true;
   const known = db.prepare('SELECT 1 FROM user_devices WHERE user_id = ? AND device_id = ?').get(user.id, deviceId);
@@ -50,9 +48,6 @@ async function emailLoginOtp(user) {
 }
 
 // POST /api/auth/login
-// Body: { email, password } or { email, pin }, plus deviceId. If the device is new or the account
-// has been idle 3+ days, no session is issued yet: a code is emailed and a short-lived
-// stepUpToken is returned to finish with /login/verify-otp.
 router.post('/login', async (req, res) => {
   const { email, password, pin, deviceId } = req.body;
   if (!email || (!password && !pin)) return res.status(400).json({ error: 'Email and password (or PIN) are required' });
@@ -95,7 +90,7 @@ router.post('/forgot-password/request', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
-  // Always respond 200 even if the user doesn't exist, so we don't leak which emails are registered.
+  // dont reveal if email exists
   if (!user) return res.json({ message: 'OTP sent' });
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
@@ -126,7 +121,7 @@ router.post('/forgot-password/reset', (req, res) => {
   }
 
   const hash = bcrypt.hashSync(newPassword, 10);
-  // A reset also clears the PIN lockout.
+  // also reset pin attempts
   db.prepare('UPDATE users SET password_hash = ?, pin_attempts = 0 WHERE email = ?').run(hash, email.toLowerCase().trim());
   db.prepare('UPDATE otps SET used = 1 WHERE id = ?').run(record.id);
 
@@ -143,7 +138,7 @@ function readStepUpToken(token) {
   }
 }
 
-// POST /api/auth/login/request-otp  — resend the code for an in-progress login.
+// POST /api/auth/login/request-otp (resend code)
 router.post('/login/request-otp', async (req, res) => {
   const ctx = readStepUpToken(req.body.stepUpToken);
   if (!ctx) return res.status(401).json({ error: 'Login session expired. Please log in again.' });
@@ -156,7 +151,7 @@ router.post('/login/request-otp', async (req, res) => {
   res.json({ message: 'OTP sent' });
 });
 
-// POST /api/auth/login/verify-otp  — finishes a step-up login and issues the session.
+// POST /api/auth/login/verify-otp
 router.post('/login/verify-otp', (req, res) => {
   const { otp, stepUpToken } = req.body;
   const ctx = readStepUpToken(stepUpToken);

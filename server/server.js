@@ -1,9 +1,8 @@
-// server/server.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
-require('./db'); // runs schema creation + seeding before anything else touches the DB
+require('./db'); // setup tables first
 
 const authRoutes = require('./routes/auth');
 const sensorRoutes = require('./routes/sensors');
@@ -30,8 +29,8 @@ app.use('/api', healthRoutes);
 app.use('/api', farmRoutes);
 app.use('/api', deviceRoutes);
 
-valve.startTimer(); // closes the valve when a timed run ends, even with no phone open
-require('./lib/automation').startScheduler(); // runs the weekly watering schedule set in the app
+valve.startTimer();
+require('./lib/automation').startScheduler();
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 // eslint-disable-next-line no-unused-vars

@@ -1,6 +1,4 @@
-// components/ui/ConfirmModal.tsx
-// Generic "Are you sure?" confirmation dialog. Used for: save profile changes, log out,
-// and anywhere else in the app that needs a confirm-before-you-act step.
+// confirm dialog
 import React from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, radius, spacing } from '../../constants/theme';

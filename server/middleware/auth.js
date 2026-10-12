@@ -1,8 +1,4 @@
-// server/middleware/auth.js
-// requireAuth checks for "Authorization: Bearer <token>" and attaches the decoded user id to
-// req.userId — also rejects if that user has since been disabled (closes the gap where an
-// already-issued 7-day JWT would otherwise keep working after an admin disables the account).
-// requireAdmin (run after requireAuth) further restricts a route to Administrator accounts.
+// jwt auth and admin check
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 

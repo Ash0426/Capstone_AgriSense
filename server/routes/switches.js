@@ -1,4 +1,3 @@
-// server/routes/switches.js
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
@@ -24,8 +23,7 @@ router.patch('/:key', requireAuth, (req, res) => {
   if (typeof value !== 'boolean') return res.status(400).json({ error: 'value must be a boolean' });
 
   if (key === 'valve') {
-    // The valve is driven by lib/valve.js so every open has a hard time limit and the ESP32
-    // sees it on its next poll.
+    // valve
     const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(req.userId);
     if (value) valve.openManual(actor?.name ?? 'Unknown');
     else valve.closeValve('Manual override', actor?.name ?? 'Unknown');
@@ -33,9 +31,7 @@ router.patch('/:key', requireAuth, (req, res) => {
   }
 
   if (key === 'roof') {
-    // Opening/closing the roof by hand switches roof control to Manual, so the automation
-    // doesn't move it straight back on the next sensor reading. Turn Auto back on in
-    // Hardware Settings.
+    // manual roof turns off auto mode
     const actor = db.prepare('SELECT name FROM users WHERE id = ?').get(req.userId);
     db.prepare("UPDATE hardware_settings SET roof_mode = 'manual' WHERE id = 1").run();
     automation.setRoof(value, actor?.name ?? 'Unknown', 'Manual');
